@@ -197,7 +197,7 @@ export default function App() {
   return (
     <main id="top" className="page">
       <header>
-        <h1>lickety&apos;s AI generated Babble Clues</h1>
+        <h1>lickety&apos;s Self Serve generated Babble Clues</h1>
         <p>
           Check boxes &amp; type-in boxes for the word if you think it&apos;s the one.{" "}
           <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">Visit lickety&apos;s original clues</a>
@@ -207,7 +207,7 @@ export default function App() {
       <div className="content">
         <section className="left">
           <div className="toplinks">
-            <a href="#clues"><b>AI Generated Clues</b></a>
+            <a href="#clues"><b>Self Serve Generated Clues</b></a>
             <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer"><b>lickety&apos;s Clues Page</b></a>
           </div>
           <h2>Babble Clues {puzzle ? `for Puzzle ${puzzle}` : "for Today"}</h2>
