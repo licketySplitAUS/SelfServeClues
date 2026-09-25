@@ -1,18 +1,21 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 
 type Clue = { word: string; start: string; length: number; score: number };
-type GridResponse = { letters: string; puzzle: string | null; changed?: boolean };
+type GridResponse = { letters: string; puzzle: string | null; date?: string | null; changed?: boolean };
 
 const values: Record<string, number> = {
   A: 1, B: 3, C: 2, D: 2, E: 1, F: 4, G: 3, H: 2, I: 1,
-  J: 8, K: 5, L: 1, M: 2, N: 1, O: 1, P: 2, Q: 10, R: 1,
+  J: 8, K: 5, L: 1, M: 2, N: 1, O: 1, P: 2, Q: 5, Qu: 5, R: 1,
   S: 1, T: 1, U: 2, V: 4, W: 5, X: 8, Y: 3, Z: 10,
 };
 
 function canTrace(word: string, board: string[]) {
   const walk = (index: number, position: number, used: Set<number>): boolean => {
-    if (board[index] !== word[position]) return false;
-    if (position === word.length - 1) return true;
+    const tile = board[index];
+    const nextPosition = position + (tile === "Qu" ? 2 : 1);
+    if (tile === "Qu" ? word.slice(position, nextPosition) !== "QU" : tile !== word[position]) return false;
+    if (nextPosition === word.length) return true;
+    if (nextPosition > word.length) return false;
 
     used.add(index);
     const row = Math.floor(index / 5);
@@ -27,7 +30,7 @@ function canTrace(word: string, board: string[]) {
           nextRow >= 0 && nextRow < 5 &&
           nextColumn >= 0 && nextColumn < 5 &&
           !used.has(next) &&
-          walk(next, position + 1, new Set(used))
+          walk(next, nextPosition, new Set(used))
         ) return true;
       }
     }
@@ -35,6 +38,37 @@ function canTrace(word: string, board: string[]) {
   };
 
   return board.some((_, index) => walk(index, 0, new Set()));
+}
+
+function scoreWord(word: string) {
+  let score = 0;
+  for (let index = 0; index < word.length; index += 1) {
+    if (word[index] === "Q" && word[index + 1] === "U") {
+      score += 5;
+      index += 1;
+    } else {
+      score += values[word[index]] || 0;
+    }
+  }
+  return score * (word.length - 3);
+}
+
+function isValidPuzzleDate(value: unknown) {
+  if (typeof value !== "string") return false;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}
+
+function formatPuzzleDate(value: string | null) {
+  if (!isValidPuzzleDate(value)) return "";
+  const [year, month, day] = value!.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+  const suffix = day % 100 >= 11 && day % 100 <= 13 ? "th" : day % 10 === 1 ? "st" : day % 10 === 2 ? "nd" : day % 10 === 3 ? "rd" : "th";
+  return `${weekdays[date.getDay()]} ${day}${suffix} ${months[month - 1]} ${year}`;
 }
 
 function parseWords(text: string) {
@@ -61,12 +95,14 @@ export default function App() {
   const [found, setFound] = useState<string[]>([]);
   const [status, setStatus] = useState("Checking saved word list…");
   const [puzzle, setPuzzle] = useState<string | null>(null);
+  const [puzzleDate, setPuzzleDate] = useState<string | null>(null);
   const board = grid
     .toUpperCase()
     .replace(/[^A-Z]/g, "")
     .slice(0, 25)
     .padEnd(25, "·")
-    .split("");
+    .split("")
+    .map((letter) => letter === "Q" ? "Qu" : letter);
 
   useEffect(() => {
     async function initialise() {
@@ -83,9 +119,14 @@ export default function App() {
 
       try {
         const response = await fetch("/api/grid", { cache: "no-store" });
-        const data = await readJson<GridResponse>(response);
+        let data = await readJson<GridResponse>(response);
+        if (!isValidPuzzleDate(data.date)) {
+          const refresh = await fetch("/api/grab", { cache: "no-store" });
+          if (refresh.ok) data = await readJson<GridResponse>(refresh);
+        }
         setGrid(data.letters);
         setPuzzle(data.puzzle);
+        setPuzzleDate(data.date ?? null);
       } catch {
         // A first visitor can populate the shared grid with Grab Grid.
       }
@@ -167,6 +208,7 @@ export default function App() {
       const data = await readJson<GridResponse>(response);
       setGrid(data.letters);
       setPuzzle(data.puzzle);
+      setPuzzleDate(data.date ?? null);
       setStatus(data.changed ? "New grid saved for everyone" : "Shared grid is already current");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not grab the puzzle");
@@ -182,7 +224,7 @@ export default function App() {
           word,
           start: word.slice(0, 2),
           length: word.length,
-          score: [...word].reduce((total, letter) => total + (values[letter] || 0), 0) * (word.length - 3),
+          score: scoreWord(word),
         }))
         .sort((a, b) => a.start.localeCompare(b.start) || a.length - b.length),
     );
@@ -197,7 +239,7 @@ export default function App() {
   return (
     <main id="top" className="page">
       <header>
-        <h1>lickety&apos;s Self Serve generated Babble Clues</h1>
+        <h1>lickety&apos;s AI generated Babble Clues</h1>
         <p>
           Check boxes &amp; type-in boxes for the word if you think it&apos;s the one.{" "}
           <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">Visit lickety&apos;s original clues</a>
@@ -207,10 +249,10 @@ export default function App() {
       <div className="content">
         <section className="left">
           <div className="toplinks">
-            <a href="#clues"><b>Self Serve Generated Clues</b></a>
+            <a href="#clues"><b>AI Generated Clues</b></a>
             <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer"><b>lickety&apos;s Clues Page</b></a>
           </div>
-          <h2>Babble Clues {puzzle ? `for Puzzle ${puzzle}` : "for Today"}</h2>
+          <h2>Babble Clues {puzzle ? `for Puzzle ${puzzle}${puzzleDate ? ` - ${formatPuzzleDate(puzzleDate)}` : ""}` : "for Today"}</h2>
           <div className="controlrow">
             <label className="upload">
               {words.length ? "Replace Lists" : "Load Lists"}
