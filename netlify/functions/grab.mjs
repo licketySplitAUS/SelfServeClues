@@ -20,7 +20,9 @@ export default async (request) => {
       .slice(0, 25)
       .map((match) => match[1].toUpperCase())
       .join("");
-    const puzzle = html.match(/\/([0-9]+)\/\d{2}\/\d{2}\/\d{4}#chat_log/)?.[1] ?? null;
+    const puzzleMatch = html.match(/\/([0-9]+)\/(\d{2})\/(\d{2})\/(\d{4})#chat_log/);
+    const puzzle = puzzleMatch?.[1] ?? null;
+    const date = puzzleMatch ? `${puzzleMatch[4]}-${puzzleMatch[2]}-${puzzleMatch[3]}` : null;
 
     if (letters.length !== 25) {
       return Response.json({ error: "Could not read today’s grid" }, { status: 502 });
@@ -28,8 +30,8 @@ export default async (request) => {
 
     const dataStore = store();
     const previous = await dataStore.get("current-grid", { type: "json" });
-    if (!previous || previous.letters !== letters || previous.puzzle !== puzzle) {
-      const nextGrid = { letters, puzzle, grabbedAt: new Date().toISOString() };
+    if (!previous || previous.letters !== letters || previous.puzzle !== puzzle || previous.date !== date) {
+      const nextGrid = { letters, puzzle, date, grabbedAt: new Date().toISOString() };
       await dataStore.setJSON("current-grid", nextGrid);
       return Response.json({ ...nextGrid, changed: true });
     }
