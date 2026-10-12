@@ -226,7 +226,7 @@ export default function App() {
           length: word.length,
           score: scoreWord(word),
         }))
-        .sort((a, b) => a.start.localeCompare(b.start) || a.length - b.length),
+        .sort((a, b) => a.start.localeCompare(b.start) || a.word.localeCompare(b.word)),
     );
   }
 
