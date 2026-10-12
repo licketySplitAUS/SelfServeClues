@@ -1,7 +1,13 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 type Clue = { word: string; start: string; length: number; score: number };
 type GridResponse = { letters: string; puzzle: string | null; date?: string | null; changed?: boolean };
+type BabbleBridge = Window & {
+  AddBabbleWord?: (word: string) => string;
+  GetAllWords?: () => string;
+  showAll?: () => void;
+  AddBulkWord?: () => void;
+};
 
 const values: Record<string, number> = {
   A: 1, B: 3, C: 2, D: 2, E: 1, F: 4, G: 3, H: 2, I: 1,
@@ -80,6 +86,16 @@ function parseWords(text: string) {
   )];
 }
 
+function cleanBulkWord(line: string) {
+  return line
+    .replace(/\t/g, " ")
+    .replace(/look up word/gi, "")
+    .trim()
+    .split(/\s+/)[0]
+    ?.replace(/[^a-z]/gi, "")
+    .toUpperCase() || "";
+}
+
 async function readJson<T>(response: Response): Promise<T> {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Request failed");
@@ -96,6 +112,10 @@ export default function App() {
   const [status, setStatus] = useState("Checking saved word list…");
   const [puzzle, setPuzzle] = useState<string | null>(null);
   const [puzzleDate, setPuzzleDate] = useState<string | null>(null);
+  const [bulkWords, setBulkWords] = useState("");
+  const [bulkAdded, setBulkAdded] = useState("");
+  const [bulkMessage, setBulkMessage] = useState("");
+  const foundRef = useRef<string[]>([]);
   const board = grid
     .toUpperCase()
     .replace(/[^A-Z]/g, "")
@@ -137,11 +157,18 @@ export default function App() {
   useEffect(() => {
     if (!puzzle) return;
     try {
-      setFound(JSON.parse(localStorage.getItem(`babblekey-found-${puzzle}`) || "[]"));
+      const saved = JSON.parse(localStorage.getItem(`babblekey-found-${puzzle}`) || "[]");
+      foundRef.current = saved;
+      setFound(saved);
     } catch {
+      foundRef.current = [];
       setFound([]);
     }
   }, [puzzle]);
+
+  useEffect(() => {
+    foundRef.current = found;
+  }, [found]);
 
   useEffect(() => {
     if (words.length && grid.replace(/[^A-Z]/gi, "").length === 25) solve();
@@ -231,10 +258,96 @@ export default function App() {
   }
 
   function toggle(word: string) {
-    const next = found.includes(word) ? found.filter((item) => item !== word) : [...found, word];
+    const current = foundRef.current;
+    const next = current.includes(word) ? current.filter((item) => item !== word) : [...current, word];
+    foundRef.current = next;
     setFound(next);
     if (puzzle) localStorage.setItem(`babblekey-found-${puzzle}`, JSON.stringify(next));
   }
+
+  function fillAnswer(word: string) {
+    const field = [...document.querySelectorAll<HTMLInputElement>("[data-answer-word]")]
+      .find((input) => input.dataset.answerWord === word);
+    if (field) field.value = word.toLowerCase();
+  }
+
+  function addBabbleWord(rawWord: string) {
+    const word = String(rawWord || "").trim().toUpperCase();
+    if (!clues.some((clue) => clue.word === word)) return "0";
+    if (foundRef.current.includes(word)) {
+      fillAnswer(word);
+      return "2";
+    }
+    const next = [...foundRef.current, word];
+    foundRef.current = next;
+    setFound(next);
+    if (puzzle) localStorage.setItem(`babblekey-found-${puzzle}`, JSON.stringify(next));
+    fillAnswer(word);
+    return "1";
+  }
+
+  function getAllWords() {
+    const text = clues
+      .filter((clue) => foundRef.current.includes(clue.word))
+      .map((clue) => clue.word.toLowerCase())
+      .join("\n");
+    const output = text ? `${text}\n` : "";
+    setBulkAdded(output);
+    return output;
+  }
+
+  function addBulkWords() {
+    const list = bulkWords.split(/\r?\n/).map(cleanBulkWord).filter(Boolean);
+    let added = 0;
+    list.forEach((word) => {
+      if (addBabbleWord(word) === "1") added += 1;
+    });
+    setView("all");
+    setBulkWords("");
+    setBulkMessage(`${list.length} words checked, and ${added} new words added.`);
+  }
+
+  async function pasteBulkWords() {
+    try {
+      setBulkWords(await navigator.clipboard.readText());
+      setBulkMessage("Clipboard pasted.");
+    } catch {
+      document.querySelector<HTMLTextAreaElement>('textarea[name="bulkWords"]')?.focus();
+      setBulkMessage("Click in the box and press Ctrl+V to paste.");
+    }
+  }
+
+  async function copyBulkWords() {
+    const text = getAllWords();
+    try {
+      await navigator.clipboard.writeText(text);
+      setBulkMessage("Added words copied to the clipboard.");
+    } catch {
+      const field = document.querySelector<HTMLTextAreaElement>('textarea[name="bulkAdded"]');
+      field?.focus();
+      field?.select();
+      document.execCommand("copy");
+      setBulkMessage("Added words selected and copied.");
+    }
+  }
+
+  useEffect(() => {
+    const bridge = window as BabbleBridge;
+    const externalAdd = (word: string) => addBabbleWord(word);
+    const externalGet = () => getAllWords();
+    const externalShow = () => setView("all");
+    const externalBulk = () => addBulkWords();
+    bridge.AddBabbleWord = externalAdd;
+    bridge.GetAllWords = externalGet;
+    bridge.showAll = externalShow;
+    bridge.AddBulkWord = externalBulk;
+    return () => {
+      if (bridge.AddBabbleWord === externalAdd) delete bridge.AddBabbleWord;
+      if (bridge.GetAllWords === externalGet) delete bridge.GetAllWords;
+      if (bridge.showAll === externalShow) delete bridge.showAll;
+      if (bridge.AddBulkWord === externalBulk) delete bridge.AddBulkWord;
+    };
+  }, [clues, puzzle, bulkWords]);
 
   return (
     <main id="top" className="page">
@@ -242,7 +355,8 @@ export default function App() {
         <h1>lickety&apos;s AI generated Babble Clues</h1>
         <p>
           Check boxes &amp; type-in boxes for the word if you think it&apos;s the one.{" "}
-          <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">Visit lickety&apos;s original clues</a>
+          <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">Visit lickety&apos;s original clues</a>{" "}
+          <a href="#BulkAdd"><b>Bulk Add/Grab</b></a>
         </p>
       </header>
 
@@ -289,7 +403,7 @@ export default function App() {
                           onChange={() => toggle(clue.word)}
                         />
                       </td>
-                      <td><input className="answer" aria-label={`Answer beginning ${clue.start}`} defaultValue={clue.start.toLowerCase()} /></td>
+                      <td><input className="answer" data-answer-word={clue.word} aria-label={`Answer beginning ${clue.start}`} defaultValue={clue.start.toLowerCase()} /></td>
                       <td />
                     </tr>
                     {(index === visible.length - 1 || visible[index + 1].start !== clue.start) && (
@@ -302,6 +416,24 @@ export default function App() {
           ) : (
             <p className="empty">Grab today&apos;s grid; clues are made automatically.</p>
           )}
+
+          <form name="bulk" id="BulkAdd" className="bulk" onSubmit={(event) => { event.preventDefault(); addBulkWords(); }}>
+            <h3>Bulk Add <small>(one per line)</small></h3>
+            <p>Paste words copied from Babble. Extra columns and “Look Up Word” text are ignored.</p>
+            <textarea name="bulkWords" rows={10} value={bulkWords} onChange={(event) => setBulkWords(event.target.value)} />
+            <div className="bulkbuttons">
+              <button type="submit">Add Bulk</button>
+              <button type="button" onClick={() => void pasteBulkWords()}>Paste from Clipboard</button>
+            </div>
+            <h3 id="BulkGrab">Bulk Grab <small>(one per line)</small></h3>
+            <p>Grab all words currently marked in this clues page so they can be sent to Babble or another clues page.</p>
+            <textarea name="bulkAdded" rows={10} value={bulkAdded} readOnly />
+            <div className="bulkbuttons">
+              <button type="button" onClick={getAllWords}>Get all added Words</button>
+              <button type="button" onClick={() => void copyBulkWords()}>Send to Clipboard</button>
+            </div>
+            <p className="bulkmessage" aria-live="polite">{bulkMessage}</p>
+          </form>
         </section>
 
         <section className="middle">
