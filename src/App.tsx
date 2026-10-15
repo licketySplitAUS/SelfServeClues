@@ -388,7 +388,6 @@ export default function App() {
         <p>
           Check boxes &amp; type-in boxes for the word if you think it&apos;s the one.{" "}
           <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">Visit lickety&apos;s original clues</a>{" "}
-          <a href="#BulkAdd"><b>Bulk Add/Grab</b></a>
         </p>
       </header>
 
