@@ -25,6 +25,10 @@ Open the deployed site and click **Grab Grid**. The function reads the current P
 
 Checked clues and typed answers remain in each visitor's browser and are not shared.
 
+The compact **Add word** bar follows Lickety's original clues page: press Enter or **Add Word** to mark a valid puzzle word, use the arrow to remove the last letter, and use **?** to jump to clues with the same two-letter start. In Babble Expert, Self Serve also supports Lickety Add and both word-transfer buttons through `AddBabbleWord`, `GetAllWords`, and `showAll`.
+
+At narrow widths the page automatically switches to a dense single-column layout sized for Babble Expert's clues pane.
+
 ## Local testing
 
 Install dependencies and use Netlify's local development server:

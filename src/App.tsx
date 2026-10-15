@@ -115,7 +115,10 @@ export default function App() {
   const [bulkWords, setBulkWords] = useState("");
   const [bulkAdded, setBulkAdded] = useState("");
   const [bulkMessage, setBulkMessage] = useState("");
+  const [entryWord, setEntryWord] = useState("");
+  const [entryMessage, setEntryMessage] = useState("");
   const foundRef = useRef<string[]>([]);
+  const wordInputRef = useRef<HTMLInputElement>(null);
   const board = grid
     .toUpperCase()
     .replace(/[^A-Z]/g, "")
@@ -286,6 +289,30 @@ export default function App() {
     return "1";
   }
 
+  function addEnteredWord() {
+    const word = entryWord.trim().toUpperCase();
+    if (!word) return;
+    const result = addBabbleWord(word);
+    setView("all");
+    if (result === "0") {
+      setEntryMessage(`${word.toLowerCase()} is not in this puzzle.`);
+    } else {
+      setEntryWord("");
+      setEntryMessage(result === "1" ? `${word.toLowerCase()} added.` : `${word.toLowerCase()} was already added.`);
+    }
+    wordInputRef.current?.focus();
+  }
+
+  function findEnteredWord() {
+    const start = entryWord.trim().slice(0, 2).toUpperCase();
+    if (!start) return;
+    setView("all");
+    setFilter(start);
+    setEntryMessage(`Showing clues beginning ${start.toLowerCase()}.`);
+    document.getElementById("clues")?.scrollIntoView({ block: "start" });
+    wordInputRef.current?.focus();
+  }
+
   function getAllWords() {
     const text = clues
       .filter((clue) => foundRef.current.includes(clue.word))
@@ -375,6 +402,25 @@ export default function App() {
             <button type="button" onClick={() => void grab()}>Grab Grid</button>
           </div>
           <p className="status">{status}</p>
+          <form className="wordentry" onSubmit={(event) => { event.preventDefault(); addEnteredWord(); }}>
+            <label htmlFor="add-word">Add word</label>
+            <input
+              ref={wordInputRef}
+              id="add-word"
+              value={entryWord}
+              maxLength={25}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => {
+                setEntryWord(event.target.value.replace(/[^a-z]/gi, "").toLowerCase());
+                setEntryMessage("");
+              }}
+            />
+            <button className="erase" type="button" aria-label="Remove last letter" title="Remove last letter" onClick={() => { setEntryWord((word) => word.slice(0, -1)); wordInputRef.current?.focus(); }}>←</button>
+            <button className="addword" type="submit">Add Word</button>
+            <button className="findword" type="button" aria-label="Find this clue start" title="Find this clue start" onClick={findEnteredWord}>?</button>
+          </form>
+          <p className="entrymessage" aria-live="polite">{entryMessage}</p>
           <div className="showline">
             Show&nbsp;
             <label><input type="radio" name="view" checked={view === "all"} onChange={() => setView("all")} />All</label>&nbsp;
