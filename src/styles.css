@@ -1,122 +1,128 @@
-* { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-html, body, #root { margin: 0; min-height: 100%; }
-body { background: #f0d894; color: #2b1e1b; font: 14px Georgia, serif; }
+html, #root { min-height: 100%; }
+body {
+  min-height: 100%;
+  margin: 0;
+  padding: 25px 0;
+  border-top: 3px solid #fff;
+  border-bottom: 3px solid #fff;
+  color: #2b1e1b;
+  background: #f0d894;
+  font: 80% Georgia, serif;
+  text-align: center;
+}
 a { color: #c72d1d; text-decoration: underline; }
-button, input { font: inherit; }
+button, input, textarea { font: inherit; }
 
-.page { width: 1076px; max-width: calc(100% - 40px); margin: 34px auto 0; border: 2px solid #7eb4c4; border-bottom: 0; background: #fff; }
-header { height: 174px; padding: 37px 70px; text-align: center; background: #9fcfdd url('/fixed-h1.gif') repeat-x top; border-radius: 12px 12px 0 0; border-bottom: 2px solid #b2d5df; }
-header h1 { margin: 0 0 18px; color: #fff; font: 700 37px "Trebuchet MS", Trebuchet, sans-serif; letter-spacing: 3px; }
-header p { margin: 0; color: #28728b; font-style: italic; }
-header p a { color: #d00; font-weight: bold; }
+/* Exact fixed-width frame used by Lickety's clues page. */
+.page {
+  width: 718px;
+  min-height: 1000px;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #fff url('/fixed-right-container.gif') repeat-y;
+  text-align: left;
+}
+.page::after { content: ""; display: block; clear: both; height: 7px; background: url('/fixed-right-footer.gif') no-repeat left bottom; }
+header {
+  background: url('/fixed-header.gif') repeat-y;
+  text-align: center;
+}
+header::after { content: ""; display: block; height: 10px; background: url('/fixed-right-headerwrapper.gif') no-repeat left bottom; }
+header h1 {
+  margin: 0;
+  padding-top: 25px;
+  color: #fff;
+  background: url('/fixed-h1.gif') no-repeat;
+  font: bold 2.4em "Trebuchet MS", Trebuchet, sans-serif;
+  letter-spacing: .1em;
+}
+header p {
+  margin: 0;
+  padding: 14px 20px 15px;
+  color: #28728b;
+  font-style: italic;
+  line-height: 1;
+}
+header p a { color: #c00; font-weight: bold; }
 
-.content { display: grid; grid-template-columns: 338px 374px 1fr; min-height: 900px; }
-.left, .middle, aside { padding: 30px 34px; }
-.left { padding-right: 18px; }
-.middle { padding: 102px 24px 30px; }
-.left, .middle { border-right: 2px solid #b7dbe4; }
-.toplinks { display: flex; justify-content: space-between; gap: 18px; white-space: nowrap; }
-.left h2 { margin: 0 0 26px; color: #2b1e1b; font: bold 14px Georgia, serif; }
-.controlrow { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin-bottom: 7px; }
-.controlrow button, .upload { height: 27px; border: 2px outset #222; border-radius: 0; background: #000; color: #fff; padding: 2px 7px; font: 11px Arial, sans-serif; cursor: pointer; }
-.upload { position: fixed; right: 0; bottom: 0; z-index: 50; width: 28px; height: 28px; overflow: hidden; padding: 0; border: 0; background: #000; font-size: 0; opacity: .025; cursor: pointer; }
-.upload:hover, .upload:focus-within { opacity: .18; }
+.content {
+  display: grid;
+  grid-template-columns: 235px 235px 230px;
+  align-items: start;
+}
+.mainlead { grid-column: 1 / 3; padding: 25px 25px 18px; }
+.toplinks { display: flex; justify-content: space-between; gap: 12px; white-space: nowrap; }
+.mainlead h2 { margin: 2px 0 0; font: bold 1em Georgia, serif; }
+.left { grid-column: 1; padding: 0 5px 30px 25px; }
+.middle { grid-column: 2; padding: 0 5px 30px; }
+aside { grid-column: 3; grid-row: 1 / span 2; padding: 25px 5px 30px 15px; }
+
+.controlrow { position: fixed; right: 0; bottom: 0; z-index: 50; opacity: .025; }
+.controlrow:hover, .controlrow:focus-within { opacity: .8; }
+.controlrow button, .upload { border: 2px outset #222; border-radius: 0; color: #fff; background: #000; font: 8pt Arial, sans-serif; cursor: pointer; }
+.upload { display: inline-block; width: 20px; height: 20px; overflow: hidden; font-size: 0; }
 .upload input { display: none; }
-.status { margin: 6px 0; min-height: 16px; font-style: italic; font-size: 12px; }
-.wordentry { display: grid; grid-template-columns: auto minmax(76px, 1fr) 27px 68px 27px; gap: 3px; align-items: center; margin: 8px 0 0; }
-.wordentry label { white-space: nowrap; font-size: 12px; }
-.wordentry input { width: 100%; min-width: 0; height: 27px; padding: 2px 5px; border: 1px solid #777; background: #fff; font: 13px Arial, sans-serif; }
-.wordentry button { height: 27px; padding: 1px 4px; border: 2px outset #222; border-radius: 0; color: #fff; background: #000; font: 11px Arial, sans-serif; cursor: pointer; }
-.wordentry .addword { color: #000; background: #fc0; }
-.entrymessage { min-height: 17px; margin: 2px 0 3px; color: #714500; font: italic 11px Arial, sans-serif; }
-.showline, .totals { line-height: 1.9; }
-.find { margin: 5px 0 7px; }
-.find input, .answer { height: 28px; border: 1px solid #777; background: #fff; font: 13px Arial, sans-serif; }
-.find input { width: 70px; height: 26px; }
-.clues { width: 100%; border-collapse: separate; border-spacing: 0 5px; font-size: 13px; }
-.clues td:first-child { width: 73px; text-align: right; padding-right: 8px; }
-.clues td:nth-child(2) { width: 27px; }
-.clues td:last-child { width: 92px; text-align: right; font-size: 12px; }
-.clues .groupback td { width: auto; padding: 2px 0 7px; text-align: center; }
-.answer { width: 126px; padding: 2px 5px; }
+.status, .visuallyhidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.wordentry { display: flex; align-items: center; gap: 3px; margin: 0 0 4px; white-space: nowrap; }
+.wordentry input { box-sizing: content-box; width: 80px; height: 19px; padding: 0; border: 2px inset #ddd; background: #fff; }
+.wordentry button { box-sizing: content-box; height: 19px; padding: 0; border: 2px outset #222; border-radius: 0; color: #fff; background: #000; font: 8pt Arial, sans-serif; cursor: pointer; }
+.wordentry .erase, .wordentry .findword { width: 16px; }
+.wordentry .addword { width: 58px; color: #000; background: #fc0; }
+.entrymessage { min-height: 1.2em; margin: 0 0 2px; color: #714500; font-size: .85em; font-style: italic; }
+.showline, .totals { line-height: 1.8; white-space: nowrap; }
+.showline input { margin: 0 2px; vertical-align: middle; }
+.empty { margin: 1em 0; font-style: italic; }
+
+.clues { width: 100%; border-collapse: separate; border-spacing: 2px; font-size: 1em; }
+.clues td { padding: 1px 4px; vertical-align: top; line-height: 1.8; }
+.clues td:first-child { width: 64px; text-align: right; }
+.clues td:nth-child(2) { width: 16px; padding-right: 0; }
+.clues td:nth-child(3) { padding-left: 0; }
+.clues td:last-child { display: none; }
+.clues input[type='checkbox'] { margin: 3px 0 0; }
+.answer { box-sizing: content-box; width: 80px; height: 18px; padding: 1px 2px; }
+.clues .groupback td { width: auto; padding: 2px 0; text-align: center; }
 .done { opacity: .5; }
 .done .answer { text-decoration: line-through; }
-.empty { font-style: italic; font-size: 12px; }
 
-.board { display: grid; grid-template-columns: repeat(5, 62px); width: max-content; border: 3px solid #17120d; background: #1c160d; gap: 2px; padding: 2px; }
-.board i { position: relative; width: 60px; height: 60px; display: grid; place-items: center; background: linear-gradient(#ffdc18, #ffc700); border: 2px outset #d59b00; box-shadow: inset 0 0 0 1px #f9ef72; color: #080603; font-style: normal; }
-.board b { font: 34px Arial, sans-serif; }
-.board b { line-height: 1; }
-.board small { position: absolute; left: 50%; bottom: 1px; transform: translateX(-50%); color: #fff; text-align: center; font: bold 10px Arial, sans-serif; }
-.rule { border-top: 2px solid #16110e; margin: 6px -6px 8px; }
-.middle h3 { margin: 0 0 18px; font: bold 15px Georgia, serif; }
-.middle dl { margin: 0; }
-.middle dl > div { display: grid; grid-template-columns: 1fr 50px 80px; margin: 0 0 18px; }
-.middle dt, .middle dd { margin: 0; }
+.board { display: grid; grid-template-columns: repeat(5, 40px); width: 200px; border: 1px solid #111; background: #111; }
+.tile { display: block; width: 40px; height: 40px; margin: 0; padding: 0; border: 0; background: #fc0; cursor: pointer; }
+.tile img, .tile span { display: block; width: 40px; height: 40px; }
+.rule { height: 1px; margin: 4px 0 6px; border-top: 1px solid #111; }
+.middle h3 { margin: 0 0 5px; padding: 0; color: #2b1e1b; font: bold 1.2em Georgia, serif; }
+.middle dl { margin: 0; padding: 0; }
+.middle dl > div { display: grid; grid-template-columns: 1fr 34px 62px; margin: 0; line-height: 1.8; }
+.middle dt, .middle dd { margin: 0; font-style: normal; }
 .middle dd { text-align: right; }
 .middle .grand { font-weight: bold; }
-.middle .back { display: block; text-align: center; margin: 10px 0; }
-.middle p { margin: 0 0 18px; }
+.middle .back { display: block; margin: 4px 0; text-align: center; }
+.middle p { margin: 0; line-height: 1.8; }
 
-aside { padding: 30px 28px; }
-.heart { width: 68px; height: 68px; margin: 0 auto 28px; background: url('/MyLogo.jpg') center / contain no-repeat; }
-.promo { width: 254px; height: 124px; margin: 0 auto 30px; background: url('/babble.jpg') center / contain no-repeat; }
-.support { margin: 38px 0; color: #d00; text-align: center; font: 16px monospace; letter-spacing: 1px; }
-aside h3 { margin: 28px 0 14px; padding-bottom: 10px; color: #28728b; font: 18px "Trebuchet MS", Trebuchet, sans-serif; background: url('/h3-sidebar-border.gif') repeat-x bottom; }
-aside a, aside span { display: block; margin: 0 0 20px; }
+.heart { margin: 0 0 16px; text-align: center; }
+.heart img { width: 45px; height: 45px; }
+.promo { display: block; margin: 0 auto 20px; text-align: center; }
+.promo img { width: 170px; height: 83px; }
+.support { margin: 24px 0; color: #c00; text-align: center; font: 1.1em monospace; letter-spacing: .1em; }
+aside h3 { margin: 1em 0 .5em; padding: 0 0 11px; color: #28728b; background: url('/h3-sidebar-border.gif') repeat-x left bottom; font: normal 1.2em "Trebuchet MS", Trebuchet, sans-serif; }
+aside a, aside span { display: block; margin-bottom: 1.2em; }
 
-@media (max-width: 900px) {
-  .page { max-width: 100%; margin: 0; border: 0; }
-  .content { grid-template-columns: 1fr 1fr; }
-  .left, .middle { border-right: 0; }
-  .middle { padding-top: 95px; }
-  aside { grid-column: 1 / -1; border-top: 2px solid #b7dbe4; }
-  .promo { max-width: 300px; }
-  header h1 { font-size: 27px; }
-}
-
-/* The reference site is displayed at roughly two-thirds scale on desktop. */
-@media (min-width: 901px) {
-  .page { zoom: .67; }
-}
-
-.bulk { margin-top: 18px; padding-top: 12px; border-top: 2px solid #b7dbe4; }
-.bulk h3 { margin: 10px 0 4px; font: bold 15px Georgia, serif; }
+.bulk { margin-top: 18px; padding-top: 12px; border-top: 1px solid #b7dbe4; }
+.bulk h3 { margin: 10px 0 4px; font: bold 1.1em Georgia, serif; }
 .bulk h3 small { font-weight: normal; }
 .bulk p { margin: 0 0 7px; line-height: 1.35; }
-.bulk textarea { display: block; width: 100%; min-height: 100px; padding: 4px; border: 1px solid #777; background: #fff; font: 13px Arial, sans-serif; resize: vertical; }
+.bulk textarea { box-sizing: border-box; display: block; width: 100%; min-height: 100px; padding: 4px; border: 1px solid #777; background: #fff; resize: vertical; }
 .bulkbuttons { display: flex; gap: 5px; flex-wrap: wrap; margin: 5px 0 15px; }
-.bulkbuttons button { border: 2px outset #222; border-radius: 0; background: #fc0; color: #000; padding: 3px 7px; font: 11px Arial, sans-serif; cursor: pointer; }
+.bulkbuttons button { border: 2px outset #222; border-radius: 0; background: #fc0; color: #000; padding: 3px 7px; font: 8pt Arial, sans-serif; cursor: pointer; }
 .bulkmessage { min-height: 1.35em; font-style: italic; }
-
-@media (max-width: 620px) {
-  body { background: #fff; font-size: 13px; }
-  .page { width: 100%; max-width: none; }
-  header { height: auto; padding: 13px 10px 10px; border-radius: 0; }
-  header h1 { margin-bottom: 6px; font-size: 18px; letter-spacing: .5px; }
-  header p { font-size: 11px; line-height: 1.3; }
-  .content { display: block; }
-  .left, .middle, aside { padding: 10px 8px; }
-  .left h2 { margin-bottom: 10px; }
-  .toplinks { gap: 8px; font-size: 11px; }
-  .status { margin: 3px 0; }
-  .wordentry { grid-template-columns: minmax(70px, 1fr) 25px 64px 25px; }
-  .wordentry label { grid-column: 1 / -1; }
-  .wordentry button, .wordentry input { height: 25px; }
-  .showline, .totals { line-height: 1.55; }
-  .find { margin: 3px 0; }
-  .find input { height: 23px; }
-  .clues { border-spacing: 0 2px; font-size: 12px; }
-  .clues td:first-child { width: 55px; padding-right: 4px; }
-  .clues td:nth-child(2) { width: 22px; }
-  .answer { width: 100%; height: 24px; padding: 1px 4px; }
-  .clues .groupback td { padding: 1px 0 4px; }
-  .middle { border-top: 2px solid #b7dbe4; }
-  .board { grid-template-columns: repeat(5, 52px); }
-  .board i { width: 50px; height: 50px; }
-  .board b { font-size: 27px; }
-  .toplinks { white-space: normal; }
-  .clues td:last-child { display: none; }
-  .bulk { margin-top: 10px; }
-}

@@ -202,6 +202,11 @@ export default function App() {
     [clues],
   );
 
+  const highest = useMemo(
+    () => [...clues].sort((a, b) => b.score - a.score || b.length - a.length).slice(0, 3),
+    [clues],
+  );
+
   async function load(files: FileList | null) {
     if (!files) return;
     setStatus("Saving word lists…");
@@ -305,10 +310,9 @@ export default function App() {
 
   function findEnteredWord() {
     const start = entryWord.trim().slice(0, 2).toUpperCase();
-    if (!start) return;
     setView("all");
     setFilter(start);
-    setEntryMessage(`Showing clues beginning ${start.toLowerCase()}.`);
+    setEntryMessage(start ? `Showing clues beginning ${start.toLowerCase()}.` : "Showing all clues.");
     document.getElementById("clues")?.scrollIntoView({ block: "start" });
     wordInputRef.current?.focus();
   }
@@ -388,12 +392,14 @@ export default function App() {
       </header>
 
       <div className="content">
-        <section className="left">
+        <div className="mainlead">
           <div className="toplinks">
-            <a href="#clues"><b>AI Generated Clues</b></a>
             <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer"><b>lickety&apos;s Clues Page</b></a>
+            <a href="#BulkAdd"><b>Bulk Add / Grab</b></a>
           </div>
           <h2>Babble Clues {puzzle ? `for Puzzle ${puzzle}${puzzleDate ? ` - ${formatPuzzleDate(puzzleDate)}` : ""}` : "for Today"}</h2>
+        </div>
+        <section className="left">
           <div className="controlrow">
             <label className="upload">
               {words.length ? "Replace Lists" : "Load Lists"}
@@ -403,7 +409,7 @@ export default function App() {
           </div>
           <p className="status">{status}</p>
           <form className="wordentry" onSubmit={(event) => { event.preventDefault(); addEnteredWord(); }}>
-            <label htmlFor="add-word">Add word</label>
+            <label className="visuallyhidden" htmlFor="add-word">Add word</label>
             <input
               ref={wordInputRef}
               id="add-word"
@@ -416,7 +422,7 @@ export default function App() {
                 setEntryMessage("");
               }}
             />
-            <button className="erase" type="button" aria-label="Remove last letter" title="Remove last letter" onClick={() => { setEntryWord((word) => word.slice(0, -1)); wordInputRef.current?.focus(); }}>←</button>
+            <button className="erase" type="button" aria-label="Remove last letter" title="Remove last letter" onClick={() => { setEntryWord((word) => word.slice(0, -1)); wordInputRef.current?.focus(); }}>&lt;-</button>
             <button className="addword" type="submit">Add Word</button>
             <button className="findword" type="button" aria-label="Find this clue start" title="Find this clue start" onClick={findEnteredWord}>?</button>
           </form>
@@ -430,7 +436,7 @@ export default function App() {
           <div className="totals">
             Total&nbsp; :{clues.length}&nbsp; On&nbsp; :{found.length}&nbsp; Off&nbsp; :{Math.max(0, clues.length - found.length)}
           </div>
-          <div id="clues" className="find">
+          <div id="clues" className="find visuallyhidden">
             Find start: <input value={filter} onChange={(event) => setFilter(event.target.value)} maxLength={2} />
           </div>
 
@@ -484,7 +490,17 @@ export default function App() {
 
         <section className="middle">
           <div className="board">
-            {board.map((letter, index) => <i key={index}><b>{letter}</b><small>{values[letter] || ""}</small></i>)}
+            {board.map((letter, index) => (
+              <button
+                type="button"
+                className="tile"
+                key={index}
+                aria-label={`Add ${letter}`}
+                onClick={() => { setEntryWord((word) => (word + letter).toLowerCase()); wordInputRef.current?.focus(); }}
+              >
+                {letter === "·" ? <span /> : <img src={`/${letter[0].toLowerCase()}.gif`} alt="" />}
+              </button>
+            ))}
           </div>
           <div className="rule" />
           <h3>Word Counts</h3>
@@ -500,11 +516,15 @@ export default function App() {
           {longest.map((clue) => <p key={clue.word}>{clue.start.toLowerCase()}{clue.length},{clue.score}</p>)}
           <a className="back" href="#top">Back to top</a>
           <div className="rule" />
+          <h3>Top 3 Scoring Words</h3>
+          {highest.map((clue) => <p key={clue.word}>{clue.start.toLowerCase()}{clue.length},{clue.score}</p>)}
+          <a className="back" href="#top">Back to top</a>
+          <div className="rule" />
         </section>
 
         <aside>
-          <div className="heart" aria-label="Lickety logo" />
-          <div className="promo" aria-label="Babble — come join in the fun" />
+          <p className="heart"><img src="/MyLogo.jpg" alt="Lickety logo" /></p>
+          <a className="promo" href="https://www.playbabble.com/" target="_blank" rel="noreferrer"><img src="/babble.jpg" alt="Babble — come join in the fun" /></a>
           <p className="support">▣ Please Support Babble<br />and upgrade to Pro.</p>
           <h3>Handy Links</h3>
           <a href="https://www.playbabble.com/" target="_blank" rel="noreferrer">Babble</a>
