@@ -383,7 +383,7 @@ export default function App() {
   return (
     <main id="top" className="page">
       <header>
-        <h1>lickety&apos;s AI generated Babble Clues</h1>
+        <h1>lickety&apos;s Self Serve Babble Clues</h1>
         <p>
           Check boxes &amp; type-in boxes for the word if you think it&apos;s the one.{" "}
           <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">Visit lickety&apos;s original clues</a>{" "}
@@ -527,10 +527,8 @@ export default function App() {
           <a className="promo" href="https://www.playbabble.com/" target="_blank" rel="noreferrer"><img src="/babble.jpg" alt="Babble — come join in the fun" /></a>
           <p className="support">▣ Please Support Babble<br />and upgrade to Pro.</p>
           <h3>Download Babble Expert</h3>
-          <a href="https://github.com/licketySplitAUS/BabbleExpert/releases/latest/download/BabbleExpert-Windows-Setup.exe">Windows installer</a>
-          <a href="https://github.com/licketySplitAUS/BabbleExpert/releases/latest/download/BabbleExpert-Windows-Portable.exe">Windows portable</a>
-          <a href="https://github.com/licketySplitAUS/BabbleExpert/releases/latest/download/BabbleExpert-macOS.dmg">macOS installer</a>
-          <a href="https://github.com/licketySplitAUS/BabbleExpert/releases/latest" target="_blank" rel="noreferrer">Release notes and all downloads</a>
+          <a href="https://github.com/licketySplitAUS/BabbleExpert/releases/latest/download/BabbleExpert-Windows-Setup.exe">Download for Windows</a>
+          <a href="https://github.com/licketySplitAUS/BabbleExpert/releases/latest/download/BabbleExpert-macOS.dmg">Download for Mac</a>
           <h3>Handy Links</h3>
           <a href="https://www.playbabble.com/" target="_blank" rel="noreferrer">Babble</a>
           <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">lickety&apos;s Babble Clues</a>
