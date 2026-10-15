@@ -171,7 +171,8 @@ export default function App() {
 
   useEffect(() => {
     foundRef.current = found;
-  }, [found]);
+    found.forEach(fillAnswer);
+  }, [found, clues, view, filter]);
 
   useEffect(() => {
     if (words.length && grid.replace(/[^A-Z]/gi, "").length === 25) solve();
@@ -455,7 +456,7 @@ export default function App() {
                           onChange={() => toggle(clue.word)}
                         />
                       </td>
-                      <td><input className="answer" data-answer-word={clue.word} aria-label={`Answer beginning ${clue.start}`} defaultValue={clue.start.toLowerCase()} /></td>
+                      <td><input className="answer" data-answer-word={clue.word} aria-label={`Answer beginning ${clue.start}`} defaultValue={(found.includes(clue.word) ? clue.word : clue.start).toLowerCase()} /></td>
                       <td />
                     </tr>
                     {(index === visible.length - 1 || visible[index + 1].start !== clue.start) && (
