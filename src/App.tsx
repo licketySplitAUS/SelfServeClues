@@ -532,7 +532,7 @@ export default function App() {
           <h3>Handy Links</h3>
           <a href="https://www.playbabble.com/" target="_blank" rel="noreferrer">Babble</a>
           <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">lickety&apos;s Babble Clues</a>
-          <a href="#top">AI Clues — Back to top</a>
+          <a href="#top">Back to top</a>
           <h3>Word Lists</h3>
           <span>{words.length.toLocaleString()} saved words</span>
         </aside>
