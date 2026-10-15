@@ -400,12 +400,12 @@ export default function App() {
           <h2>Babble Clues {puzzle ? `for Puzzle ${puzzle}${puzzleDate ? ` - ${formatPuzzleDate(puzzleDate)}` : ""}` : "for Today"}</h2>
         </div>
         <section className="left">
+          <button className="grabgrid" type="button" onClick={() => void grab()}>Grab Grid</button>
           <div className="controlrow">
             <label className="upload">
               {words.length ? "Replace Lists" : "Load Lists"}
               <input type="file" accept=".csv,.txt" multiple onChange={(event) => void load(event.target.files)} />
             </label>
-            <button type="button" onClick={() => void grab()}>Grab Grid</button>
           </div>
           <p className="status">{status}</p>
           <form className="wordentry" onSubmit={(event) => { event.preventDefault(); addEnteredWord(); }}>

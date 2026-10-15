@@ -60,7 +60,8 @@ aside { grid-column: 3; grid-row: 1 / span 2; padding: 25px 5px 30px 15px; }
 
 .controlrow { position: fixed; right: 0; bottom: 0; z-index: 50; opacity: .025; }
 .controlrow:hover, .controlrow:focus-within { opacity: .8; }
-.controlrow button, .upload { border: 2px outset #222; border-radius: 0; color: #fff; background: #000; font: 8pt Arial, sans-serif; cursor: pointer; }
+.upload, .grabgrid { border: 2px outset #222; border-radius: 0; color: #fff; background: #000; font: 8pt Arial, sans-serif; cursor: pointer; }
+.grabgrid { display: block; margin: 0 0 8px; padding: 3px 8px; }
 .upload { display: inline-block; width: 20px; height: 20px; overflow: hidden; font-size: 0; }
 .upload input { display: none; }
 .status, .visuallyhidden {
@@ -93,7 +94,7 @@ aside { grid-column: 3; grid-row: 1 / span 2; padding: 25px 5px 30px 15px; }
 .clues td:last-child { display: none; }
 .clues input[type='checkbox'] { margin: 3px 0 0; }
 .answer { box-sizing: content-box; width: 80px; height: 18px; padding: 1px 2px; }
-.clues .groupback td { width: auto; padding: 2px 0; text-align: center; }
+.clues .groupback td { display: table-cell; width: auto; padding: 2px 0; text-align: center; }
 .done { opacity: .5; }
 .done .answer { text-decoration: line-through; }
 
