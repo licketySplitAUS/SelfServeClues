@@ -386,8 +386,7 @@ export default function App() {
         <h1>lickety&apos;s AI generated Babble Clues</h1>
         <p>
           Check boxes &amp; type-in boxes for the word if you think it&apos;s the one.{" "}
-          <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">Visit lickety&apos;s original clues</a>{" "}
-          <a href="#BulkAdd"><b>Bulk Add/Grab</b></a>
+          <a href="https://github.com/licketySplitAUS/BabbleExpert/releases/latest" target="_blank" rel="noreferrer"><b>Download Babble Expert for Windows or Mac</b></a>
         </p>
       </header>
 
