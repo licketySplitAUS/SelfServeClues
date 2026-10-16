@@ -24,7 +24,7 @@ export default async (request, context) => {
     return json({ error: "Invalid JSON" }, 400);
   }
 
-  if (!data || !["install", "upgrade"].includes(data.event)) {
+  if (!data || !["install", "upgrade", "resource", "option"].includes(data.event)) {
     return json({ error: "Invalid event" }, 400);
   }
 
@@ -37,22 +37,32 @@ export default async (request, context) => {
     context.geo?.country?.name || context.geo?.country?.code || "Unknown",
     60,
   );
-  const isUpgrade = data.event === "upgrade";
+  const titles = {
+    install: "New Babble Expert user",
+    upgrade: "Babble Expert upgraded",
+    resource: "Babble Expert resource opened",
+    option: "Babble Expert option used",
+  };
+  const colors = { install: 0x69e8c3, upgrade: 0xffc857, resource: 0x69c8ff, option: 0xb58cff };
+  const fields = [
+    { name: "Version", value: clean(data.version), inline: true },
+    {
+      name: "Platform",
+      value: `${clean(data.platform)} · ${clean(data.architecture)}`,
+      inline: true,
+    },
+    { name: "Country", value: country, inline: true },
+  ];
+  if (["resource", "option"].includes(data.event)) {
+    fields.unshift({ name: data.event === "resource" ? "Resource" : "Option", value: clean(data.item, 80), inline: false });
+  }
   const message = {
     username: "Babble Expert",
     allowed_mentions: { parse: [] },
     embeds: [{
-      title: isUpgrade ? "Babble Expert upgraded" : "New Babble Expert user",
-      color: isUpgrade ? 0xffc857 : 0x69e8c3,
-      fields: [
-        { name: "Version", value: clean(data.version), inline: true },
-        {
-          name: "Platform",
-          value: `${clean(data.platform)} · ${clean(data.architecture)}`,
-          inline: true,
-        },
-        { name: "Country", value: country, inline: true },
-      ],
+      title: titles[data.event],
+      color: colors[data.event],
+      fields,
       timestamp: new Date().toISOString(),
       footer: { text: "Anonymous opt-in notification" },
     }],
