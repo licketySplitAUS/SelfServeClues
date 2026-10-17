@@ -118,6 +118,7 @@ export default function App() {
   const [entryWord, setEntryWord] = useState("");
   const [entryMessage, setEntryMessage] = useState("");
   const foundRef = useRef<string[]>([]);
+  const grabInFlight = useRef(false);
   const wordInputRef = useRef<HTMLInputElement>(null);
   const board = grid
     .toUpperCase()
@@ -140,19 +141,7 @@ export default function App() {
         setStatus(error instanceof Error ? error.message : "Could not load the word list");
       }
 
-      try {
-        const response = await fetch("/api/grid", { cache: "no-store" });
-        let data = await readJson<GridResponse>(response);
-        if (!isValidPuzzleDate(data.date)) {
-          const refresh = await fetch("/api/grab", { cache: "no-store" });
-          if (refresh.ok) data = await readJson<GridResponse>(refresh);
-        }
-        setGrid(data.letters);
-        setPuzzle(data.puzzle);
-        setPuzzleDate(data.date ?? null);
-      } catch {
-        // A first visitor can populate the shared grid with Grab Grid.
-      }
+      await grab(true);
     }
     void initialise();
   }, []);
@@ -237,7 +226,9 @@ export default function App() {
     }
   }
 
-  async function grab() {
+  async function grab(automatic = false) {
+    if (grabInFlight.current) return;
+    grabInFlight.current = true;
     setStatus("Checking today’s puzzle…");
     try {
       const response = await fetch("/api/grab", { cache: "no-store" });
@@ -248,6 +239,17 @@ export default function App() {
       setStatus(data.changed ? "New grid saved for everyone" : "Shared grid is already current");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not grab the puzzle");
+      if (automatic) {
+        // Keep the last shared puzzle available when PlayBabble is offline.
+        try {
+          const data = await readJson<GridResponse>(await fetch("/api/grid", { cache: "no-store" }));
+          setGrid(data.letters);
+          setPuzzle(data.puzzle);
+          setPuzzleDate(data.date ?? null);
+        } catch { /* retain the currently displayed grid */ }
+      }
+    } finally {
+      grabInFlight.current = false;
     }
   }
 

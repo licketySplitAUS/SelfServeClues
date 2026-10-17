@@ -10,6 +10,7 @@
     "dev": "netlify dev",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "node --test \"test/*.test.mjs\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -1,6 +1,6 @@
 # lickety's AI generated Babble Clues — Netlify edition
 
-This is a normal Vite/React site prepared for Netlify. The frontend is static, while three Netlify Functions provide the shared daily grid and optional shared word-list replacement.
+This is a normal Vite/React site prepared for Netlify. The frontend is static, while Netlify Functions provide the shared daily grid, optional shared word-list replacement and Babble Expert usage notifications.
 
 ## Deploy with GitHub
 
@@ -17,11 +17,17 @@ Netlify reads `netlify.toml`, which sets:
 
 Netlify automatically provisions the Blob store when the deployed functions first use it. No environment variables are required for normal use.
 
+### Babble Expert usage notifications
+
+The `/api/babble-notify` function accepts the opt-in `install`, `upgrade`, `resource`, `option`, and `session` events sent by Babble Expert and forwards a fixed-format notification to Discord. Reports include a random installation ID, app version, operating-system platform, processor architecture, and country supplied by Netlify's request context. Depending on the event, they also include the previous app version, selected menu item or session duration. The installation ID allows reports from the same installation to be associated over time. The function does not read or forward the visitor's IP address, entered words, chat or puzzle activity; hosting providers can still process connection information in their own logs. Usage sharing requires consent in Babble Expert and can be disabled in its Options menu.
+
+Create `DISCORD_WEBHOOK_URL` under **Project configuration → Environment variables**, mark it as containing a secret value, and paste the Discord webhook URL there. Never add the webhook URL to source control. After changing the variable, redeploy the site before testing the endpoint.
+
 For safety, you can add a secret named `WORDLIST_ADMIN_KEY` under **Project configuration → Environment variables**. When this is set, the hidden word-list replacement control asks for that key before replacing the shared list. The built-in word list and Grab Grid do not require it.
 
 ## First use
 
-Open the deployed site and click **Grab Grid**. The function reads the current PlayBabble page and saves the resulting grid in the `babble-shared-data` Netlify Blob store. Later visitors receive that same grid until someone clicks **Grab Grid** after the puzzle changes.
+Opening the deployed site automatically checks PlayBabble through **Grab Grid**. The function reads the current PlayBabble page and saves changes in the `babble-shared-data` Netlify Blob store. If PlayBabble is unavailable, the page falls back to the last saved grid, which may be an older puzzle. **Grab Grid** remains available for a manual refresh, and overlapping requests from the same page are prevented.
 
 Checked clues and typed answers remain in each visitor's browser and are not shared.
 
@@ -38,4 +44,4 @@ npm install
 npm run dev
 ```
 
-Use `npm run build` to verify the production frontend build.
+Use `npm test` for notification-field checks, `npm run typecheck` for TypeScript validation and `npm run build` to verify the production frontend build.
