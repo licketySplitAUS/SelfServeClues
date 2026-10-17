@@ -529,6 +529,7 @@ export default function App() {
           <a className="promo" href="https://www.playbabble.com/" target="_blank" rel="noreferrer"><img src="/babble.jpg" alt="Babble — come join in the fun" /></a>
           <p className="support">▣ Please Support Babble<br />and upgrade to Pro.</p>
           <a href="https://youtu.be/IBgTrBk35uI" target="_blank" rel="noreferrer">Babble Expert - What is it? I explain with this short video</a>
+          <a href="https://youtu.be/6ZK0IiQIkk4" target="_blank" rel="noreferrer">Babble Expert V3.2.2.0 Update Demo</a>
           <h3>Download Babble Expert</h3>
           <a href="https://github.com/licketySplitAUS/BabbleExpert/releases/latest/download/BabbleExpert-Windows-Setup.exe">Download for Windows</a>
           <a href="https://github.com/licketySplitAUS/BabbleExpert/releases/latest/download/BabbleExpert-macOS.dmg">Download for Mac</a>
