@@ -45,7 +45,7 @@ test("Babble notification sends only the approved fields to Discord", async (t) 
   assert.deepEqual(
     sent.body.embeds[0].fields.map(({ name, value }) => [name, value]),
     [
-      ["Anonymous user", "BE-ABCD-EFGH"],
+      ["Anonymous user", "Katherine\nBE-ABCD-EFGH"],
       ["Version", "3.1.2"],
       ["Platform", "Windows / x64"],
       ["Country", "Australia"],

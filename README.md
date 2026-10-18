@@ -45,3 +45,7 @@ npm run dev
 ```
 
 Use `npm test` for notification-field checks, `npm run typecheck` for TypeScript validation and `npm run build` to verify the production frontend build.
+
+### Memorable anonymous aliases
+
+Discord shows a stable English first name above the installation code (for example, Katherine and BE-ABCD-EFGH). The server hashes the complete code with SHA-256, reads the first four bytes as an unsigned big-endian integer and selects a name from a fixed, versioned list. The list order and hash rule must remain unchanged to preserve existing aliases. No names are collected from users, and no mapping database is required. First names may repeat; retain the original code to distinguish installations. The algorithm is in netlify/lib/anonymous-alias.mjs.

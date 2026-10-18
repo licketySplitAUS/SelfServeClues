@@ -1,3 +1,5 @@
+import { anonymousAlias } from "../lib/anonymous-alias.mjs";
+
 const json = (body, status = 200) => Response.json(body, {
   status,
   headers: { "cache-control": "no-store" },
@@ -44,7 +46,7 @@ export default async (request, context) => {
   };
   const colors = { install: 0x69e8c3, upgrade: 0xffc857, resource: 0x69c8ff, option: 0xb58cff, session: 0xff78b8 };
   const fields = [
-    { name: "Anonymous user", value: anonymousId(data.anonymousId), inline: true },
+    { name: "Anonymous user", value: anonymousAlias(data.anonymousId) + "\n" + anonymousId(data.anonymousId), inline: true },
     { name: "Version", value: clean(data.version), inline: true },
     { name: "Platform", value: `${clean(data.platform)} / ${clean(data.architecture)}`, inline: true },
     { name: "Country", value: country, inline: true },
