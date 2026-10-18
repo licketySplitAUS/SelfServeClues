@@ -32,13 +32,16 @@ test("Babble notification sends only the approved fields to Discord", async (t) 
     }),
   });
   const response = await notify(request, {
-    geo: { country: { name: "Australia", code: "AU" } },
+    geo: { city: "Sydney", latitude: -33.8, longitude: 151.2, postalCode: "2000", country: { name: "Australia", code: "AU" } },
     ip: "192.0.2.1",
   });
 
   assert.equal(response.status, 204);
   assert.equal(sent.url, process.env.DISCORD_WEBHOOK_URL);
   assert.equal(sent.body.embeds[0].title, "New Babble Expert user");
+  assert.equal(sent.body.embeds[0].footer, undefined);
+  assert.ok(sent.body.embeds[0].timestamp);
+  assert.doesNotMatch(JSON.stringify(sent.body), /Sydney|151.2|2000/);
   assert.deepEqual(
     sent.body.embeds[0].fields.map(({ name, value }) => [name, value]),
     [
@@ -60,14 +63,16 @@ test("Babble notification sends only the approved fields to Discord", async (t) 
       architecture: "x64",
       anonymousId: "BE-ABCD-EFGH",
       item: "Lickety Info <@everyone>",
+      locationConsentVersion: 3,
     }),
   });
   const resourceResponse = await notify(resourceRequest, {
-    geo: { country: { name: "Australia", code: "AU" } },
+    geo: { city: "Sydney", country: { name: "Australia", code: "AU" } },
   });
 
   assert.equal(resourceResponse.status, 204);
   assert.equal(sent.body.embeds[0].title, "Babble Expert resource opened");
+  assert.deepEqual(sent.body.embeds[0].fields.at(-1), { name: "Approx. city", value: "Sydney", inline: true });
   assert.deepEqual(sent.body.embeds[0].fields[0], {
     name: "Resource",
     value: "Lickety Info everyone",

@@ -49,6 +49,10 @@ export default async (request, context) => {
     { name: "Platform", value: `${clean(data.platform)} / ${clean(data.architecture)}`, inline: true },
     { name: "Country", value: country, inline: true },
   ];
+  // Older clients consented to country only. Never enrich those reports with city.
+  if (data.locationConsentVersion === 3 && context.geo?.city) {
+    fields.push({ name: "Approx. city", value: clean(context.geo.city, 80), inline: true });
+  }
   if (["resource", "option"].includes(data.event)) {
     fields.unshift({ name: data.event === "resource" ? "Resource" : "Option", value: clean(data.item, 80), inline: false });
   }
@@ -67,7 +71,6 @@ export default async (request, context) => {
       color: colors[data.event],
       fields,
       timestamp: new Date().toISOString(),
-      footer: { text: "Anonymous opt-in notification" },
     }],
   };
 
