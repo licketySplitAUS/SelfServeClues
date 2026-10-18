@@ -347,7 +347,7 @@ export default function App() {
       setBulkMessage("Clipboard pasted.");
     } catch {
       document.querySelector<HTMLTextAreaElement>('textarea[name="bulkWords"]')?.focus();
-      setBulkMessage("Click in the box and press Ctrl+V to paste.");
+      setBulkMessage("Click in the Bulk Add box and use your browser Paste command, or press Ctrl+V (Cmd+V on Mac).");
     }
   }
 
