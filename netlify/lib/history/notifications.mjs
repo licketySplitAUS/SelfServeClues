@@ -5,10 +5,10 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
   const key = `${details.date}/${event}${event === 'test' ? `-${Date.now()}` : ''}`;
   let claimed = false;
   const messages = {
-    watching: ['Babble preview: watching for the flip', `Checking for ${details.date} at midnight US Central. Retries taper from 1 to 5 to 10 minutes and stop after one hour.`],
+    watching: ['Babble preview: watching for the flip', `Checking for ${details.date} starting at 00:${String(details.startMinute || 0).padStart(2, '0')} US Central. Retries taper from 1 to 5 to 10 minutes and stop after one hour.`],
     published: ['Babble preview: new clues are ready', `Puzzle #${details.puzzle} · ${details.date}\n${details.words} words · ${details.score} points\nClues and historical statistics have been updated.`],
-    timeout: ['Babble preview: manual flip check needed', `The midnight check window for ${details.date} has ended without publishing that day's grid.\nKeeping puzzle #${details.puzzle} (${details.puzzleDate}).\nLast status: ${String(details.message || 'The site did not provide a confirmed new grid.').slice(0, 500)}`],
-    test: ['Babble preview: flip notifications enabled', 'Test notification. Flip checks use US Central midnight and stop after one hour. No puzzle data was changed by this test.'],
+    timeout: ['Babble preview: manual flip check needed', `The check window for ${details.date} has ended without publishing that day's grid.\nKeeping puzzle #${details.puzzle} (${details.puzzleDate}).\nLast status: ${String(details.message || 'The site did not provide a confirmed new grid.').slice(0, 500)}`],
+    test: ['Babble preview: flip notifications enabled', `Test notification. Flip checks start at 00:${String(details.startMinute || 0).padStart(2, '0')} US Central and stop after one hour. No puzzle data was changed by this test.`],
   };
   const [title, description] = messages[event];
   try {

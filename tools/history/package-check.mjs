@@ -18,7 +18,7 @@ for (const result of results.filter(item => item.name.startsWith('history-'))) {
   assert.ok(result.size < 10000000, 'History function package remains small');
   console.log(JSON.stringify({ name: result.name, size: result.size, runtime: result.runtime, schedule: result.schedule, routes: result.routes, path: result.path }));
 }
-assert.equal(results.find(item => item.name === 'history-tick')?.schedule, '0-10,15,20,25,30,40,50 5,6 * * *');
+assert.equal(results.find(item => item.name === 'history-tick')?.schedule, '* 5-7 * * *');
 assert.equal(results.some(item => item.name === 'history-retry'), false);
-assert.equal(results.find(item => item.name === 'history-flip-summary')?.schedule, '0 6,7 * * *');
+assert.equal(results.some(item => item.name === 'history-flip-summary'), false);
 console.log('PASS: Netlify function bundling, schedule and route extraction; no network or deployment performed.');

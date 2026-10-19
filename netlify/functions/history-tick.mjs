@@ -1,5 +1,5 @@
 import { service } from '../lib/history/runtime.mjs';
-import { runScheduled } from '../lib/history/schedule.mjs';
+import { runScheduled, finishFlipWindow } from '../lib/history/schedule.mjs';
 import { notifyFlip } from '../lib/history/notifications.mjs';
 
 export default async () => {
@@ -7,8 +7,10 @@ export default async () => {
   // or publishing puzzles. It cannot touch the live babble-shared-data store.
   if (process.env.HISTORY_PREVIEW_SCHEDULE_ENABLED !== 'true') return;
   const result = await runScheduled({ createService: service, notify: notifyFlip });
-  console.log('History preview tick', JSON.stringify(result));
+  const summary = result.outcome === 'outside-window' ? await finishFlipWindow({ createService: service, notify: notifyFlip }) : result;
+  if (summary.outcome !== 'outside-window') console.log('History preview tick', JSON.stringify(summary));
 };
-// Midnight Central is 05:00 UTC in summer and 06:00 UTC in winter. The
-// America/Chicago guard selects the correct hour without seasonal redeploys.
-export const config = { schedule: '0-10,15,20,25,30,40,50 5,6 * * *' };
+// Cover both Central UTC offsets and configurable starts through 00:59.
+// The local-time guard reads no storage and makes no upstream requests except
+// on the configured retry minutes and the one-hour notification deadline.
+export const config = { schedule: '* 5-7 * * *' };

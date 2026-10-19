@@ -1,7 +1,7 @@
 import { authorized, service } from '../lib/history/runtime.mjs';
 import { gzipSync } from 'node:zlib';
 import { notifyFlip } from '../lib/history/notifications.mjs';
-import { centralTime } from '../lib/history/schedule.mjs';
+import { centralTime, scheduleStartMinute } from '../lib/history/schedule.mjs';
 
 export default async request => {
   const headers = { 'cache-control': 'no-store' };
@@ -18,7 +18,7 @@ export default async request => {
     else if (body.action === 'word') result = await worker.check({ correction: body.correction });
     else if (body.action === 'rollback') result = await worker.rollback();
     else if (body.action === 'notify-test') {
-      result = await notifyFlip('test', { date: centralTime(new Date()).date });
+      result = await notifyFlip('test', { date: centralTime(new Date()).date, startMinute: scheduleStartMinute() });
       if (result.outcome !== 'sent') return Response.json({ error: result.outcome === 'not-configured' ? 'The Discord webhook is not configured.' : 'The Discord test could not be delivered.' }, { status: 503, headers });
       result.message = 'Discord test notification sent.';
     }

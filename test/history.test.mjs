@@ -148,16 +148,16 @@ test('flip schedule follows US Central midnight across summer, winter and DST tr
   let services = 0, checks = 0;
   const createService = async () => { services++; return { current: async () => ({ current: { date: '2026-06-30', puzzle: 1 } }), check: async () => { checks++; return { outcome: 'candidate' }; } }; };
   const expected = [0,1,2,3,4,5,6,7,8,9,10,15,20,25,30,40,50];
-  for (const midnight of ['2026-07-01T05:00:00Z', '2026-12-01T06:00:00Z']) {
+  for (const midnight of ['2026-07-01T05:00:00Z', '2026-12-01T06:00:00Z']) for (const startMinute of [0, 17, 59]) {
     const observed = [];
-    for (let minute = 0; minute <= 120; minute++) {
-      const result = await runScheduled({ now: new Date(Date.parse(midnight) + minute * 60000), createService });
+    for (let minute = 0; minute <= 180; minute++) {
+      const result = await runScheduled({ now: new Date(Date.parse(midnight) + minute * 60000), createService, startMinute });
       if (result.outcome === 'candidate') observed.push(minute);
     }
-    assert.deepEqual(observed, expected, 'One minute, then five, then ten; no attempts after the first hour');
+    assert.deepEqual(observed, expected.map(minute => minute + startMinute), 'Never publish before the start; taper retries for one hour, even across 01:00');
   }
   assert.equal((await runScheduled({ now: new Date('2026-12-01T05:00:00Z'), createService })).outcome, 'outside-window');
-  assert.equal(services, 34); assert.equal(checks, 34);
+  assert.equal(services, 102); assert.equal(checks, 102);
 });
 
 test('scheduled checks stop fetching once the Central-date puzzle is published', async () => {
@@ -197,4 +197,16 @@ test('flip notices deduplicate events, avoid spoilers/mentions, and retry failed
   assert.match(sent[2].embeds[0].description, /197 words.*2400 points/);
   assert.doesNotMatch(JSON.stringify(sent), /private-flip-webhook|must-not-be-sent/);
   assert.equal((await sendFlipNotice('test', details, { ...options, webhook: undefined })).outcome, 'not-configured');
+});
+
+test('configurable start validates minutes and moves the no-fetch cutoff to one hour after the start', async () => {
+  const { scheduleStartMinute, finishFlipWindow } = await import('../netlify/lib/history/schedule.mjs');
+  assert.equal(scheduleStartMinute('17'), 17); assert.equal(scheduleStartMinute('0'), 0); assert.equal(scheduleStartMinute('59'), 59);
+  for (const value of ['60', '-1', '17.5', 'not-a-minute']) assert.throws(() => scheduleStartMinute(value), /whole number from 0 to 59/);
+  let reads = 0, notices = 0;
+  const options = { startMinute: 17, createService: async () => ({ current: async () => { reads++; return { current: { date: '2026-06-30', puzzle: 41 } }; } }), notify: async () => { notices++; } };
+  assert.equal((await finishFlipWindow({ ...options, now: new Date('2026-07-01T06:00:00Z') })).outcome, 'outside-window');
+  assert.equal((await finishFlipWindow({ ...options, now: new Date('2026-07-01T06:17:00Z') })).outcome, 'manual-check-needed');
+  assert.equal((await finishFlipWindow({ ...options, now: new Date('2026-07-01T06:18:00Z') })).outcome, 'outside-window');
+  assert.equal(reads, 1); assert.equal(notices, 1);
 });

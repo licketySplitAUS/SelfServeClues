@@ -12,6 +12,7 @@ export type Stats = {
 export type Snapshot = {
   schemaVersion: number; source: string; sourceVersion: string; updatedAt: string; status: string;
   schedulingEnabled?: boolean;
+  startMinute?: number;
   current: Game & { words: Word[] }; history: Stats;
   today: { counts: Record<string, { count: number; score: number }>; prefixes: Record<string, { count: number; score: number }>; starts: Record<string, { count: number; score: number }> };
   monitor?: { lastCheck: string | null; message: string | null; candidate: Game | null };

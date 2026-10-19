@@ -4,6 +4,8 @@ import Admin from './Admin';
 export default function AdminPage() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null), [audit, setAudit] = useState<Audit | null>(null), [error, setError] = useState('');
   const [loading, setLoading] = useState(false), [refreshMessage, setRefreshMessage] = useState('');
+  const start = snapshot?.startMinute ?? 0;
+  const time = (minute: number) => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
   async function load(manual = false) {
     setLoading(true); setError('');
     if (manual) setRefreshMessage('Reloading saved status…');
@@ -17,7 +19,7 @@ export default function AdminPage() {
       }
       if (!response.ok) throw new Error('Could not load the saved snapshot.');
       const next: Snapshot = await response.json();
-      const unchanged = snapshot && next.updatedAt === snapshot.updatedAt && JSON.stringify(next.monitor) === JSON.stringify(snapshot.monitor) && next.schedulingEnabled === snapshot.schedulingEnabled;
+      const unchanged = snapshot && next.updatedAt === snapshot.updatedAt && JSON.stringify(next.monitor) === JSON.stringify(snapshot.monitor) && next.schedulingEnabled === snapshot.schedulingEnabled && next.startMinute === snapshot.startMinute;
       setSnapshot(next);
       if (importedFallback) setRefreshMessage('Showing the imported snapshot because the saved status is unavailable.');
       else if (manual) setRefreshMessage(`Saved status reloaded at ${new Date().toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney' })} (Sydney). ${unchanged ? 'No changes since the previous display.' : 'The display is up to date.'}`);
@@ -37,10 +39,11 @@ export default function AdminPage() {
       </div><button disabled={loading} onClick={() => void load(true)}>{loading ? 'Reloading…' : 'Reload saved status'}</button>
       <p role="status" aria-live="polite">{refreshMessage}</p>
       <p>This reloads the saved result. To look for a new grid, enter your admin key below and choose <a href="#administration-controls">Check PlayBabble now</a>.</p>
-      <p>Automatic schedule (US Central): every minute from 00:00–00:09, every five minutes from 00:10–00:29, then every ten minutes from 00:30–00:59. Checks stop once today's puzzle is published, or at 01:00 if it has not flipped. Daylight saving is handled automatically.</p>
+      <p>Automatic schedule (US Central): every minute from {time(start)}–{time(start + 9)}, every five minutes from {time(start + 10)}–{time(start + 29)}, then every ten minutes from {time(start + 30)}–{time(start + 59)}. Checks stop once today's puzzle is published, or at {time(start + 60)} if it has not flipped. Daylight saving is handled automatically.</p>
+      <p>The Netlify environment variable <code>HISTORY_PREVIEW_START_MINUTE</code> sets the minutes after midnight to begin (0–59). Change it in Project configuration → Environment variables, then redeploy to apply. The preview keeps the previous puzzle until a new one is published; a new grid still needs two observations.</p>
       <p>Discord receives a flip-watch update, a publication update with word/point totals, or a manual-check alert if the hour ends without the new grid. Individual retries do not send messages. Word discrepancies do not block publication; verify them against your logged-in PlayBabble statistics.</p>
       <h2>What to do when something looks wrong</h2><ol>
-        <li><b>Late grid or a failed check:</b> choose “Check PlayBabble now”. A repeat of the same grid leaves history unchanged. Automatic retries run only during the first hour after midnight US Central, keeping the last good puzzle while waiting. After 01:00, check manually if it still has not flipped.</li>
+        <li><b>Late grid or a failed check:</b> choose “Check PlayBabble now”. A repeat of the same grid leaves history unchanged. Automatic retries run for one hour from {time(start)} US Central, keeping the last good puzzle while waiting. After {time(start + 60)}, check manually if it still has not flipped.</li>
         <li><b>A new grid is waiting:</b> verify it on PlayBabble. A second observation after 20 seconds can publish it, or choose “Check and accept current upstream grid” after checking it yourself. This does not skip identity validation.</li>
         <li><b>One rejected or missing word:</b> verify the word on PlayBabble, enter it in Word correction, choose Exclude or Include, give a reason, then apply. The puzzle and statistics rebuild automatically; future puzzles remember the correction.</li>
         <li><b>Find the extra word using stats:</b> log in to PlayBabble in your usual browser and look at its statistics. Under Compare PlayBabble stats below, enter its total, word-length counts and starting-letter counts. The differences show where to look. Filter the candidate list by length and starting letter, then select a word to fill Word correction. Verify the word before excluding it. A count difference alone cannot identify which word is wrong.</li>
@@ -49,7 +52,7 @@ export default function AdminPage() {
       </ol>
       <p>Corrections change the current puzzle and future puzzles. Earlier completed puzzles retain their recorded results.</p>
       {snapshot.comparison && <section><h2>Last puzzle changes</h2><p>Previously {snapshot.comparison.previousWords} words / {snapshot.comparison.previousScore} points.</p><p>Added: {snapshot.comparison.added.join(', ') || 'none'}<br />Removed: {snapshot.comparison.removed.join(', ') || 'none'}</p></section>}
-      <Admin snapshot={snapshot} onSnapshot={next => { setSnapshot(previous => ({ ...next, schedulingEnabled: previous?.schedulingEnabled })); setRefreshMessage('Saved status updated from the admin action.'); }} />
+      <Admin snapshot={snapshot} onSnapshot={next => { setSnapshot(previous => ({ ...next, schedulingEnabled: previous?.schedulingEnabled, startMinute: previous?.startMinute })); setRefreshMessage('Saved status updated from the admin action.'); }} />
       <h2>Saved dictionary corrections</h2>{Object.entries(snapshot.corrections || {}).length ? <table><thead><tr><th>Word</th><th>Decision</th><th>Reason</th></tr></thead><tbody>{Object.entries(snapshot.corrections || {}).map(([word, row]) => <tr key={word}><td>{word}</td><td>{row.action}</td><td>{row.reason}</td></tr>)}</tbody></table> : <p>No new corrections. The imported rejected-word list still applies.</p>}
       <details><summary>Current solution (contains spoilers)</summary><pre>{snapshot.current.words.map(row => `${row.word}\t${row.score}`).join('\n')}</pre></details>
     </>}

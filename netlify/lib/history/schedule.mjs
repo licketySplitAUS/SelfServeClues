@@ -8,9 +8,16 @@ export function centralTime(now) {
   return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour), minute: Number(parts.minute) };
 }
 
-export async function runScheduled({ now = new Date(), createService, notify = async () => {} }) {
+export function scheduleStartMinute(value = process.env.HISTORY_PREVIEW_START_MINUTE) {
+  if (value === undefined || value === '') return 0;
+  if (!/^\d{1,2}$/.test(String(value)) || Number(value) > 59) throw new Error('HISTORY_PREVIEW_START_MINUTE must be a whole number from 0 to 59.');
+  return Number(value);
+}
+
+export async function runScheduled({ now = new Date(), createService, notify = async () => {}, startMinute = scheduleStartMinute() }) {
   const local = centralTime(now);
-  const allowed = local.hour === 0 && (local.minute < 10 || (local.minute < 30 ? local.minute % 5 === 0 : local.minute % 10 === 0));
+  const elapsed = local.hour * 60 + local.minute - scheduleStartMinute(startMinute);
+  const allowed = elapsed >= 0 && elapsed < 60 && (elapsed < 10 || (elapsed < 30 ? elapsed % 5 === 0 : elapsed % 10 === 0));
   if (!allowed) return { outcome: 'outside-window' };
   const worker = await createService();
   const snapshot = await worker.current();
@@ -20,7 +27,7 @@ export async function runScheduled({ now = new Date(), createService, notify = a
     if (snapshot.current.date === local.date) await notify('published', { date: local.date, puzzle: snapshot.current.puzzle, words: snapshot.current.totalWords, score: snapshot.current.totalScore });
     return { outcome: 'already-current', puzzle: snapshot.current.puzzle };
   }
-  await notify('watching', { date: local.date });
+  await notify('watching', { date: local.date, startMinute });
   const result = await worker.check();
   if (result.outcome === 'published') {
     const updated = await worker.current();
@@ -29,14 +36,14 @@ export async function runScheduled({ now = new Date(), createService, notify = a
   return result;
 }
 
-export async function finishFlipWindow({ now = new Date(), createService, notify = async () => {} }) {
+export async function finishFlipWindow({ now = new Date(), createService, notify = async () => {}, startMinute = scheduleStartMinute() }) {
   const local = centralTime(now);
-  if (local.hour !== 1 || local.minute !== 0) return { outcome: 'outside-window' };
+  if (local.hour * 60 + local.minute !== scheduleStartMinute(startMinute) + 60) return { outcome: 'outside-window' };
   const worker = await createService(), snapshot = await worker.current();
   if (snapshot.current.date >= local.date) {
     if (snapshot.current.date === local.date) await notify('published', { date: local.date, puzzle: snapshot.current.puzzle, words: snapshot.current.totalWords, score: snapshot.current.totalScore });
     return { outcome: 'already-current', puzzle: snapshot.current.puzzle };
   }
-  await notify('timeout', { date: local.date, puzzle: snapshot.current.puzzle, puzzleDate: snapshot.current.date, message: snapshot.monitor?.message });
+  await notify('timeout', { date: local.date, puzzle: snapshot.current.puzzle, puzzleDate: snapshot.current.date, message: snapshot.monitor?.message, startMinute });
   return { outcome: 'manual-check-needed', puzzle: snapshot.current.puzzle };
 }

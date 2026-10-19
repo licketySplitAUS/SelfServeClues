@@ -107,21 +107,32 @@ production-hosted experiment as of 19 October 2026. Set
 **HISTORY_PREVIEW_SCHEDULE_ENABLED=true** in the production environment and
 redeploy to apply. Branch/deploy previews do not run automatic schedules.
 
-Checks use America/Chicago (US Central), including daylight saving:
-- 00:00?00:09: every minute.
-- 00:10?00:29: every five minutes (10, 15, 20, 25).
-- 00:30?00:59: every ten minutes (30, 40, 50).
-- At 01:00 the check window closes. Longer delays require a manual admin check.
+Checks use America/Chicago (US Central), including daylight saving.
+**HISTORY_PREVIEW_START_MINUTE=17** sets the minutes after midnight to start.
+Valid values are whole numbers 0?59; the default when unset is 0. Invalid
+values fail closed instead of publishing early. Change this variable under
+Netlify Project configuration ? Environment variables and redeploy to apply.
 
-Cron wakes at these minutes in both possible UTC midnight hours (05 and 06),
-and the America/Chicago guard selects the correct hour. Outside that window it
-does not read storage or fetch PlayBabble. Once the saved puzzle is dated today
-in Central time, remaining attempts skip the upstream request. Until then an
-unresponsive/stale site retains the last good result and is retried at the next
-scheduled attempt. New grids still need two observations before publication.
-No function sleeps while waiting. There are at most 17 upstream attempts per
-day; a normal rollover usually needs two. Only the separate preview history
-store changes; the original live grid/word-list workflow remains separate.
+With the current value 17:
+- 00:17?00:26: every minute.
+- 00:27?00:46: every five minutes (27, 32, 37, 42).
+- 00:47?01:16: every ten minutes (47, 57, 01:07).
+- At 01:17 the check window closes. Longer delays require a manual admin check.
+
+The one-hour retry window moves with the configured start. New grids still
+need two observations, so the usual publication follows the second check.
+No scheduled solve or upstream fetch happens before the configured start.
+
+Cron wakes once per minute during the possible UTC hours (05?07); the local
+time guard selects the retry minutes and deadline. Other wakeups read no
+storage and fetch nothing. Once the saved puzzle is dated today in Central
+time, remaining attempts skip the upstream request. Until then an unresponsive
+or stale site retains the last good result and is retried at the next scheduled
+attempt. No function sleeps while waiting. There are at most 17 upstream
+attempts per day; a normal rollover usually needs two. The deadline notification
+is handled by the same history-tick function and never fetches upstream.
+Only the separate preview history store changes; the original live grid/word-list
+workflow remains separate.
 
 Authenticated actions include checking/accepting upstream, re-solving the current
 preview puzzle, manual puzzle entry with a reason, and word include/exclude/restore.
@@ -238,7 +249,7 @@ The existing server-only DISCORD_WEBHOOK_URL is reused. Messages announce the
 watch beginning, successful publication (puzzle/date/words/points), or the end
 of the one-hour window without a new grid. Daily per-event receipts in the
 preview store prevent repeat messages. Failed delivery releases the receipt
-for a later scheduled attempt and does not block puzzle publication. The 01:00
+for a later scheduled attempt and does not block puzzle publication. The end-of-window
 summary only reads saved state; it does not extend the upstream check window.
 
 No logged-in PlayBabble statistics are available to the server. Word-count
@@ -246,3 +257,9 @@ discrepancies therefore do not block the solved clues, and Discord does not
 claim the totals are officially verified. Corrections remain available in
 admin. An authenticated Send Discord flip test button verifies delivery
 without changing puzzle data. No full solution words or secrets are sent.
+
+
+The Powered by Netlify badge was disabled through the project's
+built_with_badge_enabled setting. It was already off on babbleclues. This
+removes Netlify's edge-injected public badge without CSS workarounds, code
+changes to page content, or a plan upgrade.
