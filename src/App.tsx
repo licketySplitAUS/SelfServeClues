@@ -425,7 +425,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
           <h2>Babble Clues {puzzle ? `for Puzzle ${puzzle}${puzzleDate ? ` - ${formatPuzzleDate(puzzleDate)}` : ""}` : "for Today"}</h2>
         </div>
         <section className="left">
-          <button className="grabgrid" type="button" onClick={() => void grab()}>Grab Grid</button>
+          {!publishedPuzzle && <button className="grabgrid" type="button" onClick={() => void grab()}>Grab Grid</button>}
           {!publishedPuzzle && <div className="controlrow">
             <label className="upload">
               {words.length ? "Replace Lists" : "Load Lists"}
