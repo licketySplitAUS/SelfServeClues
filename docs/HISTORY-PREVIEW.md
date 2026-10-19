@@ -262,3 +262,25 @@ The Powered by Netlify badge was disabled through the project's
 built_with_badge_enabled setting. It was already off on babbleclues. This
 removes Netlify's edge-injected public badge without CSS workarounds, code
 changes to page content, or a plan upgrade.
+
+## Discord channel routing and explicit messages
+
+Server-only webhook variables route install events to
+DISCORD_NEW_USER_WEBHOOK_URL, upgrades to DISCORD_UPGRADE_WEBHOOK_URL, puzzle
+flip updates to DISCORD_PUZZLE_WEBHOOK_URL, and player-written messages to
+DISCORD_MESSAGE_WEBHOOK_URL. Each falls back to the existing DISCORD_WEBHOOK_URL
+when not configured. Other approved usage events keep the original channel.
+No webhook URL is included in the desktop application or public build.
+
+Install notifications remain the client's once-per-installation, opted-in
+first-use event; upgrades retain their separate event. Usage-sharing consent
+and location fields are unchanged. Puzzle publication notices include the
+puzzle date, official puzzle number, internal game ID, total words/points and
+word counts/points by length. The admin Discord test includes the saved puzzle's
+same statistics without changing that puzzle.
+
+POST /api/lickety-message accepts only an explicit message of 1–500 characters
+and the app version. It forwards those fields to the message channel with
+mentions disabled. It works independently of usage sharing. The desktop never
+sends drafts or opens the message composer automatically. Routing changes are
+not listed in Babble Expert release notes; the player-facing message feature is.

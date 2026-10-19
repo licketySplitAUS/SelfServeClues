@@ -33,7 +33,8 @@ export default async (request, context) => {
     return json({ error: "Invalid event" }, 400);
   }
 
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  const webhookUrl = (data.event === 'upgrade' ? process.env.DISCORD_UPGRADE_WEBHOOK_URL
+    : data.event === 'install' ? process.env.DISCORD_NEW_USER_WEBHOOK_URL : null) || process.env.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return json({ error: "Notification service is not configured" }, 503);
 
   const country = clean(context.geo?.country?.name || context.geo?.country?.code || "Unknown", 60);

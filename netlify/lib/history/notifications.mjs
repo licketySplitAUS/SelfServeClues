@@ -11,6 +11,17 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
     test: ['Babble preview: flip notifications enabled', `Test notification. Flip checks start at 00:${String(details.startMinute || 0).padStart(2, '0')} US Central and stop after one hour. No puzzle data was changed by this test.`],
   };
   const [title, description] = messages[event];
+  const fields = [];
+  if (details.puzzle !== undefined) fields.push(
+    { name: 'Puzzle date', value: String(details.date), inline: true },
+    { name: 'Puzzle number', value: String(details.puzzle), inline: true },
+    { name: 'Game ID', value: String(details.gameId ?? details.puzzle), inline: true },
+  );
+  if (details.words !== undefined) fields.push({ name: 'Words / points', value: `${details.words} words · ${details.score} points`, inline: true });
+  const sizes = Object.entries(details.wordCounts || {}).sort(([a], [b]) => Number(a) - Number(b))
+    .map(([length, row]) => `${length} letters: ${row.count} words · ${row.score} pts`).join('\n');
+  if (sizes) fields.push({ name: 'Word counts by size', value: sizes.slice(0, 1024) });
+  fields.push({ name: 'Administration', value: '[Open admin & exceptions](https://selfserve.r46.me/history-admin.html)' });
   try {
     if (!await repo.claimNotification(key)) return { outcome: 'already-sent' };
     claimed = true;
@@ -19,7 +30,7 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
       body: JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title, description,
         color: event === 'timeout' ? 15105570 : event === 'published' ? 3066993 : 3447003,
         url: 'https://selfserve.r46.me/history-preview.html', timestamp: new Date().toISOString(),
-        fields: [{ name: 'Administration', value: '[Open admin & exceptions](https://selfserve.r46.me/history-admin.html)' }],
+        fields,
       }] }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -32,5 +43,5 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
 }
 
 export const notifyFlip = (event, details) => sendFlipNotice(event, details, {
-  repo: blobRepository(), webhook: process.env.DISCORD_WEBHOOK_URL,
+  repo: blobRepository(), webhook: process.env.DISCORD_PUZZLE_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL,
 });

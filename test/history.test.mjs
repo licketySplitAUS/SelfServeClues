@@ -210,3 +210,11 @@ test('configurable start validates minutes and moves the no-fetch cutoff to one 
   assert.equal((await finishFlipWindow({ ...options, now: new Date('2026-07-01T06:18:00Z') })).outcome, 'outside-window');
   assert.equal(reads, 1); assert.equal(notices, 1);
 });
+
+test('published puzzle notifications include game ID and word-size statistics', async()=>{
+ const {puzzleNoticeDetails}=await import('../netlify/lib/history/schedule.mjs');const {sendFlipNotice}=await import('../netlify/lib/history/notifications.mjs');let sent;
+ const details=puzzleNoticeDetails({current:{date:'2026-10-20',puzzle:8609,gameId:7425,totalWords:120,totalScore:1400},today:{counts:{4:{count:80,score:400},5:{count:40,score:1000}}}});
+ await sendFlipNotice('published',details,{repo:{claimNotification:async()=>true},webhook:'https://example.invalid/solving',fetchImpl:async(url,options)=>{sent=JSON.parse(options.body);return new Response(null,{status:204});}});
+ const fields=sent.embeds[0].fields;assert.equal(fields.find(row=>row.name==='Game ID').value,'7425');assert.equal(fields.find(row=>row.name==='Puzzle date').value,'2026-10-20');
+ assert.match(fields.find(row=>row.name==='Word counts by size').value,/4 letters: 80 words.*400 pts/);assert.match(fields.find(row=>row.name==='Word counts by size').value,/5 letters: 40 words.*1000 pts/);
+});

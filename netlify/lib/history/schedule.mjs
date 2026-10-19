@@ -14,6 +14,9 @@ export function scheduleStartMinute(value = process.env.HISTORY_PREVIEW_START_MI
   return Number(value);
 }
 
+export const puzzleNoticeDetails = snapshot => ({ date: snapshot.current.date, puzzle: snapshot.current.puzzle, gameId: snapshot.current.gameId,
+  words: snapshot.current.totalWords, score: snapshot.current.totalScore, wordCounts: snapshot.today?.counts || {} });
+
 export async function runScheduled({ now = new Date(), createService, notify = async () => {}, startMinute = scheduleStartMinute() }) {
   const local = centralTime(now);
   const elapsed = local.hour * 60 + local.minute - scheduleStartMinute(startMinute);
@@ -24,14 +27,14 @@ export async function runScheduled({ now = new Date(), createService, notify = a
   // Once today's puzzle is published there is no need to fetch upstream again.
   // Future manual grids are also respected. Word corrections remain an admin action.
   if (snapshot.current.date >= local.date) {
-    if (snapshot.current.date === local.date) await notify('published', { date: local.date, puzzle: snapshot.current.puzzle, words: snapshot.current.totalWords, score: snapshot.current.totalScore });
+    if (snapshot.current.date === local.date) await notify('published', puzzleNoticeDetails(snapshot));
     return { outcome: 'already-current', puzzle: snapshot.current.puzzle };
   }
   await notify('watching', { date: local.date, startMinute });
   const result = await worker.check();
   if (result.outcome === 'published') {
     const updated = await worker.current();
-    await notify('published', { date: updated.current.date, puzzle: updated.current.puzzle, words: updated.current.totalWords, score: updated.current.totalScore });
+    await notify('published', puzzleNoticeDetails(updated));
   }
   return result;
 }
@@ -41,7 +44,7 @@ export async function finishFlipWindow({ now = new Date(), createService, notify
   if (local.hour * 60 + local.minute !== scheduleStartMinute(startMinute) + 60) return { outcome: 'outside-window' };
   const worker = await createService(), snapshot = await worker.current();
   if (snapshot.current.date >= local.date) {
-    if (snapshot.current.date === local.date) await notify('published', { date: local.date, puzzle: snapshot.current.puzzle, words: snapshot.current.totalWords, score: snapshot.current.totalScore });
+    if (snapshot.current.date === local.date) await notify('published', puzzleNoticeDetails(snapshot));
     return { outcome: 'already-current', puzzle: snapshot.current.puzzle };
   }
   await notify('timeout', { date: local.date, puzzle: snapshot.current.puzzle, puzzleDate: snapshot.current.date, message: snapshot.monitor?.message, startMinute });
