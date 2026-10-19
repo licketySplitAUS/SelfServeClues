@@ -181,3 +181,20 @@ then enable and observe scheduled publishing over several grid changes.
 Promote the history version to Self Serve first, retain the original r46.me
 clues page until comparisons pass, then switch the existing original URL while
 preserving its navigation and Babble Expert bridge. Keep Legacy Free unchanged.
+
+## Stable access and hidden shortcut
+
+The separate trial pages are also available on the Self Serve production host:
+`https://selfserve.r46.me/history-preview.html` and
+`https://selfserve.r46.me/history-admin.html`. The main `/` page still uses its
+original live grid/word-list endpoints. This publishes access to the experiment,
+not a replacement of the usual clues page. The original r46.me clues site is
+unaffected. The production-context history store is the separate site-wide
+`babble-history-preview-v1`; its scheduler is explicitly false.
+
+Click **Support** in “Please Support Babble and upgrade to Pro.” five times
+within two seconds. From normal Self Serve it opens the trial clues page;
+from trial clues it opens admin. The word's visual style is unchanged, and
+slower clicks reset the count. This is only a navigation shortcut: server-side
+admin actions still require the secret key, which remains out of source control.
+The same local preview key is configured for the production-hosted trial admin.

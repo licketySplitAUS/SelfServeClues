@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 type Clue = { word: string; start: string; length: number; score: number };
 type GridResponse = { letters: string; puzzle: string | null; date?: string | null; changed?: boolean };
@@ -130,6 +130,22 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   const foundRef = useRef<string[]>([]);
   const grabInFlight = useRef(false);
   const wordInputRef = useRef<HTMLInputElement>(null);
+  const supportClicks = useRef({ count: 0, startedAt: 0 });
+  const supportDestination = publishedPuzzle ? "/history-admin.html" : "/history-preview.html";
+  function supportShortcut(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    const now = performance.now();
+    const clicks = supportClicks.current;
+    if (!clicks.count || now - clicks.startedAt > 2000) {
+      clicks.count = 0;
+      clicks.startedAt = now;
+    }
+    clicks.count += 1;
+    if (clicks.count === 5) {
+      clicks.count = 0;
+      window.location.assign(supportDestination);
+    }
+  }
   const board = grid
     .toUpperCase()
     .replace(/[^A-Z]/g, "")
@@ -551,7 +567,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
         <aside>
           <p className="heart"><img src="/MyLogo.jpg" alt="Lickety logo" /></p>
           <a className="promo" href="https://www.playbabble.com/" target="_blank" rel="noreferrer"><img src="/babble.jpg" alt="Babble — come join in the fun" /></a>
-          <p className="support">▣ Please Support Babble<br />and upgrade to Pro.</p>
+          <p className="support">▣ Please <a className="support-shortcut" href={supportDestination} onClick={supportShortcut}>Support</a> Babble<br />and upgrade to Pro.</p>
           <a href="https://youtu.be/IBgTrBk35uI" target="_blank" rel="noreferrer">Babble Expert - What is it? I explain with this short video</a>
           <a href="https://youtu.be/6ZK0IiQIkk4" target="_blank" rel="noreferrer">Babble Expert V3.2.2.0 Update Demo</a>
           <h3>Download Babble Expert</h3>

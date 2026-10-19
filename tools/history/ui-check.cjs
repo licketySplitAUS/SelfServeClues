@@ -36,7 +36,13 @@ app.whenReady().then(async () => {
     await fs.mkdir(out, { recursive: true });
     await sleep(100);
     await fs.writeFile(path.join(out, 'desktop.png'), (await win.webContents.capturePage()).toPNG());
-    await win.loadURL(`http://127.0.0.1:${server.address().port}/history-admin.html`);
+    assert.equal(await run(`document.querySelector('.support-shortcut').getAttribute('href')`), '/history-admin.html');
+    await run(`for(let i=0;i<4;i++) document.querySelector('.support-shortcut').click()`);
+    assert.ok(win.webContents.getURL().endsWith('/history-preview.html'), 'Four clicks do not navigate');
+    await sleep(2100);
+    await run(`document.querySelector('.support-shortcut').click()`);
+    assert.ok(win.webContents.getURL().endsWith('/history-preview.html'), 'Slow clicks reset the shortcut');
+    await run(`for(let i=0;i<4;i++) document.querySelector('.support-shortcut').click()`);
     await until(() => run(`document.querySelector('.admin fieldset')`));
     assert.equal(await run(`document.querySelector('.admin fieldset').disabled`), true);
     assert.ok(await run(`document.body.textContent.includes('Find the extra word using stats')`));
