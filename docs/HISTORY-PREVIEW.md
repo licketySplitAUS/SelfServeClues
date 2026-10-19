@@ -207,3 +207,11 @@ manual reload keeps the current result and reports the error; it never silently
 replaces current status with the imported fallback. Initial offline loading can
 still use that fallback, with a visible explanation. Checking PlayBabble remains
 a separate authenticated action linked directly from the status explanation.
+
+Both normal Self Serve and the history preview include “Printable Clues
+(no boxes). Click here” above the puzzle heading. It opens the corresponding
+page with `?print=1` in a separate tab and uses that page's solver/saved snapshot.
+The plain printable view includes puzzle number/date and all clues, grouped by
+prefix, without filters, completion marks, answer fields, board or sidebars.
+Its Print/Back toolbar is hidden by print media CSS. No separate legacy static
+HTML file or additional Netlify endpoint is needed.

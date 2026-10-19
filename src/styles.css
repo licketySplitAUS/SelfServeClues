@@ -128,3 +128,19 @@ aside a, aside span { display: block; margin-bottom: 1.2em; }
 .bulkbuttons { display: flex; gap: 5px; flex-wrap: wrap; margin: 5px 0 15px; }
 .bulkbuttons button { border: 2px outset #222; border-radius: 0; background: #fc0; color: #000; padding: 3px 7px; font: 8pt Arial, sans-serif; cursor: pointer; }
 .bulkmessage { min-height: 1.35em; font-style: italic; }
+
+.printable-link { display: inline-block; margin: 5px 0; }
+body.printable-page { margin: 8px; padding: 0; border: 0; background: #fff; color: #000; text-align: left; font: 16px/1.45 Verdana, Helvetica, Arial, sans-serif; }
+.printable-document { width: auto; margin: 0; padding: 0; }
+.printable-document h1 { margin: 22px 0 40px; font: bold 1em/1.45 Verdana, Helvetica, Arial, sans-serif; }
+.print-credit { margin: 0; font-size: 8pt; }
+.print-credit small { font-size: 6pt; }
+.printable-gap { height: 1.45em; }
+.printable-clue { break-inside: avoid; }
+.print-toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
+.print-toolbar button { padding: 4px 16px; cursor: pointer; }
+@media print {
+  body.printable-page { margin: 0; }
+  .print-toolbar { display: none; }
+  .printable-document { width: 100%; }
+}

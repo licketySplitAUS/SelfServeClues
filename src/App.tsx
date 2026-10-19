@@ -113,6 +113,7 @@ type AppProps = {
 };
 
 export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExtra, dictionaryCount }: AppProps = {}) {
+  const printable = new URLSearchParams(window.location.search).get('print') === '1';
   const [grid, setGrid] = useState("");
   const [words, setWords] = useState<string[]>([]);
   const [clues, setClues] = useState<Clue[]>([]);
@@ -132,6 +133,12 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   const wordInputRef = useRef<HTMLInputElement>(null);
   const supportClicks = useRef({ count: 0, startedAt: 0 });
   const supportDestination = publishedPuzzle ? "/history-admin.html" : "/history-preview.html";
+  useEffect(() => {
+    if (!printable) return;
+    document.body.classList.add('printable-page');
+    document.title = "lickety's Printable Babble Clues";
+    return () => document.body.classList.remove('printable-page');
+  }, [printable]);
   function supportShortcut(event: MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
     const now = performance.now();
@@ -422,6 +429,18 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
     };
   }, [clues, puzzle, bulkWords]);
 
+  if (printable) return (
+    <main className="printable-document">
+      <div className="print-toolbar"><a href={publishedPuzzle ? '/history-preview.html' : '/'}>Back to clues</a><button type="button" disabled={!clues.length} onClick={() => window.print()}>Print</button></div>
+      <p className="print-credit">Printable Babble Clues&nbsp;&nbsp; <small>brought to you by licketySplitAUS</small></p>
+      <h1>Babble Clues {puzzle ? `for Puzzle ${puzzle}${puzzleDate ? ` - ${formatPuzzleDate(puzzleDate)}` : ''}` : 'for Today'}</h1>
+      {clues.length ? <div className="printable-clues">{clues.map((clue, index) => <Fragment key={clue.word}>
+        {index > 0 && clues[index - 1].start !== clue.start && <div className="printable-gap" />}
+        <div className="printable-clue">{clue.start.toLowerCase()}{clue.length},{clue.score}</div>
+      </Fragment>)}</div> : <p role="status">{status}</p>}
+    </main>
+  );
+
   return (
     <main id="top" className="page">
       <header>
@@ -438,6 +457,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
             <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer"><b>lickety&apos;s Clues Page</b></a>
             <a href="#BulkAdd"><b>Bulk Add / Grab</b></a>
           </div>
+          <a className="printable-link" href={`${publishedPuzzle ? '/history-preview.html' : '/'}?print=1`} target="_blank" rel="noopener noreferrer"><b>Printable Clues (no boxes). Click here</b></a>
           <h2>Babble Clues {puzzle ? `for Puzzle ${puzzle}${puzzleDate ? ` - ${formatPuzzleDate(puzzleDate)}` : ""}` : "for Today"}</h2>
         </div>
         <section className="left">
