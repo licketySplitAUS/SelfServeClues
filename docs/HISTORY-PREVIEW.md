@@ -76,11 +76,12 @@ The new endpoints use a separate URL prefix:
 
 - `GET /history-api/current`: one saved snapshot; short browser/CDN cache.
 - `POST /history-api/admin`: authenticated preview-only administration.
-- `history-tick`: five-minute scheduled function with an explicit opt-in guard.
+- `history-tick`: US Central flip-time scheduled function with an explicit opt-in guard.
+- `history-flip-summary`: at 01:00 Central, checks saved status and alerts Discord if unresolved; never fetches upstream.
 
 Set a new secret **`HISTORY_PREVIEW_ADMIN_KEY`** in Netlify before trying admin
 actions. A missing key fails closed. The admin form keeps the key only in memory.
-This secret is unrelated to the live word-list key. No notification/chat is sent.
+This secret is unrelated to the live word-list key. Flip notices use the existing Discord webhook; nothing is posted into PlayBabble chat.
 
 All writes use **`babble-history-preview-v1`**, never the live Blob store.
 Draft and unknown contexts use a deploy-specific store (`getDeployStore`); only
@@ -101,12 +102,26 @@ new number are allowed; regressions, invalid dates and malformed grids do not
 replace the saved result. The last good puzzle remains clearly dated. Monitor
 messages describe late/error responses without destroying it.
 
-The scheduler is **disabled by default**. Merely deploying this code creates
-no automatic upstream fetches or history publications. Its scheduled invocations
-return immediately until **`HISTORY_PREVIEW_SCHEDULE_ENABLED=true`** is explicitly
-configured for the production context and deployed. Netlify schedules do not run
-automatically on branch/deploy previews. Leave it disabled until comparison is
-complete. A bad upstream page is retried at the next tick; the function never sleeps.
+The scheduler is disabled by default in code and is explicitly enabled for the
+production-hosted experiment as of 19 October 2026. Set
+**HISTORY_PREVIEW_SCHEDULE_ENABLED=true** in the production environment and
+redeploy to apply. Branch/deploy previews do not run automatic schedules.
+
+Checks use America/Chicago (US Central), including daylight saving:
+- 00:00?00:09: every minute.
+- 00:10?00:29: every five minutes (10, 15, 20, 25).
+- 00:30?00:59: every ten minutes (30, 40, 50).
+- At 01:00 the check window closes. Longer delays require a manual admin check.
+
+Cron wakes at these minutes in both possible UTC midnight hours (05 and 06),
+and the America/Chicago guard selects the correct hour. Outside that window it
+does not read storage or fetch PlayBabble. Once the saved puzzle is dated today
+in Central time, remaining attempts skip the upstream request. Until then an
+unresponsive/stale site retains the last good result and is retried at the next
+scheduled attempt. New grids still need two observations before publication.
+No function sleeps while waiting. There are at most 17 upstream attempts per
+day; a normal rollover usually needs two. Only the separate preview history
+store changes; the original live grid/word-list workflow remains separate.
 
 Authenticated actions include checking/accepting upstream, re-solving the current
 preview puzzle, manual puzzle entry with a reason, and word include/exclude/restore.
@@ -131,7 +146,7 @@ conditional commits are harmless; cleanup can be added after the trial.
 This first version includes a backup export, not an automatic off-site backup
 schedule or a cloud backup-restore importer. Add those before retiring the VM.
 Initial/full historical rebuilds run through local tools (or an external build
-runner), not a paid background function. The five-minute job only processes the
+runner), not a paid background function. The flip-time job only processes the
 current puzzle plus small aggregate/index records.
 
 ## Acceptance before switching over
@@ -190,7 +205,7 @@ The separate trial pages are also available on the Self Serve production host:
 original live grid/word-list endpoints. This publishes access to the experiment,
 not a replacement of the usual clues page. The original r46.me clues site is
 unaffected. The production-context history store is the separate site-wide
-`babble-history-preview-v1`; its scheduler is explicitly false.
+`babble-history-preview-v1`; its scheduler is now enabled with the flip-time window above.
 
 Click **Support** in “Please Support Babble and upgrade to Pro.” five times
 within two seconds. From normal Self Serve it opens the trial clues page;
@@ -215,3 +230,19 @@ The plain printable view includes puzzle number/date and all clues, grouped by
 prefix, without filters, completion marks, answer fields, board or sidebars.
 Its Print/Back toolbar is hidden by print media CSS. No separate legacy static
 HTML file or additional Netlify endpoint is needed.
+
+
+## Discord flip updates
+
+The existing server-only DISCORD_WEBHOOK_URL is reused. Messages announce the
+watch beginning, successful publication (puzzle/date/words/points), or the end
+of the one-hour window without a new grid. Daily per-event receipts in the
+preview store prevent repeat messages. Failed delivery releases the receipt
+for a later scheduled attempt and does not block puzzle publication. The 01:00
+summary only reads saved state; it does not extend the upstream check window.
+
+No logged-in PlayBabble statistics are available to the server. Word-count
+discrepancies therefore do not block the solved clues, and Discord does not
+claim the totals are officially verified. Corrections remain available in
+admin. An authenticated Send Discord flip test button verifies delivery
+without changing puzzle data. No full solution words or secrets are sent.

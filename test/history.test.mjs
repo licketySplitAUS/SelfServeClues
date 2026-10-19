@@ -136,3 +136,65 @@ test('admin writes fail closed without a configured key and reject unauthenticat
   assert.equal((await adminHandler(new Request('https://example.test/history-api/admin', { method: 'POST', body: '{}' }))).status, 403);
 });
 
+
+test('flip schedule follows US Central midnight across summer, winter and DST transitions', async () => {
+  const { centralTime, runScheduled } = await import('../netlify/lib/history/schedule.mjs');
+  assert.deepEqual(centralTime(new Date('2026-07-01T05:05:00Z')), { date: '2026-07-01', hour: 0, minute: 5 });
+  assert.deepEqual(centralTime(new Date('2026-12-01T06:05:00Z')), { date: '2026-12-01', hour: 0, minute: 5 });
+  assert.equal(centralTime(new Date('2026-03-08T06:00:00Z')).hour, 0);
+  assert.equal(centralTime(new Date('2026-03-09T05:00:00Z')).hour, 0);
+  assert.equal(centralTime(new Date('2026-11-01T05:00:00Z')).hour, 0);
+  assert.equal(centralTime(new Date('2026-11-02T06:00:00Z')).hour, 0);
+  let services = 0, checks = 0;
+  const createService = async () => { services++; return { current: async () => ({ current: { date: '2026-06-30', puzzle: 1 } }), check: async () => { checks++; return { outcome: 'candidate' }; } }; };
+  const expected = [0,1,2,3,4,5,6,7,8,9,10,15,20,25,30,40,50];
+  for (const midnight of ['2026-07-01T05:00:00Z', '2026-12-01T06:00:00Z']) {
+    const observed = [];
+    for (let minute = 0; minute <= 120; minute++) {
+      const result = await runScheduled({ now: new Date(Date.parse(midnight) + minute * 60000), createService });
+      if (result.outcome === 'candidate') observed.push(minute);
+    }
+    assert.deepEqual(observed, expected, 'One minute, then five, then ten; no attempts after the first hour');
+  }
+  assert.equal((await runScheduled({ now: new Date('2026-12-01T05:00:00Z'), createService })).outcome, 'outside-window');
+  assert.equal(services, 34); assert.equal(checks, 34);
+});
+
+test('scheduled checks stop fetching once the Central-date puzzle is published', async () => {
+  const { runScheduled } = await import('../netlify/lib/history/schedule.mjs');
+  let checks = 0;
+  const createService = async () => ({ current: async () => ({ current: { date: '2026-07-01', puzzle: 42 } }), check: async () => { checks++; } });
+  assert.deepEqual(await runScheduled({ now: new Date('2026-07-01T05:10:00Z'), createService }), { outcome: 'already-current', puzzle: 42 });
+  assert.equal(checks, 0);
+});
+
+test('flip deadline alerts once the hour ends without fetching upstream or discarding the last result', async () => {
+  const { finishFlipWindow } = await import('../netlify/lib/history/schedule.mjs');
+  let checks = 0, reads = 0; const notices = [];
+  const createService = async () => ({ current: async () => { reads++; return { current: { date: '2026-06-30', puzzle: 41 }, monitor: { message: 'PlayBabble returned 503.' } }; }, check: async () => { checks++; } });
+  const options = { createService, notify: async (event, details) => notices.push({ event, details }) };
+  assert.equal((await finishFlipWindow({ ...options, now: new Date('2026-07-01T06:00:00Z') })).outcome, 'manual-check-needed');
+  assert.equal(notices[0].event, 'timeout'); assert.equal(notices[0].details.puzzle, 41);
+  assert.equal((await finishFlipWindow({ ...options, now: new Date('2026-07-01T07:00:00Z') })).outcome, 'outside-window');
+  assert.equal(reads, 1); assert.equal(checks, 0);
+});
+
+test('flip notices deduplicate events, avoid spoilers/mentions, and retry failed delivery without blocking publication', async () => {
+  const { sendFlipNotice } = await import('../netlify/lib/history/notifications.mjs');
+  const claims = new Set(), sent = [];
+  const repo = { claimNotification: async key => { if (claims.has(key)) return false; claims.add(key); return true; }, releaseNotification: async key => claims.delete(key) };
+  let fail = false;
+  const options = { repo, webhook: 'https://example.invalid/private-flip-webhook', fetchImpl: async (url, request) => { sent.push(JSON.parse(request.body)); return new Response(null, { status: fail ? 503 : 204 }); } };
+  const details = { date: '2026-07-01', puzzle: 42, words: 197, score: 2400, ignored: 'must-not-be-sent' };
+  assert.equal((await sendFlipNotice('watching', details, options)).outcome, 'sent');
+  assert.equal((await sendFlipNotice('watching', details, options)).outcome, 'already-sent');
+  fail = true;
+  assert.equal((await sendFlipNotice('published', details, options)).outcome, 'delivery-failed');
+  fail = false;
+  assert.equal((await sendFlipNotice('published', details, options)).outcome, 'sent');
+  assert.equal((await sendFlipNotice('published', details, options)).outcome, 'already-sent');
+  assert.equal(sent.length, 3); assert.deepEqual(sent[2].allowed_mentions, { parse: [] });
+  assert.match(sent[2].embeds[0].description, /197 words.*2400 points/);
+  assert.doesNotMatch(JSON.stringify(sent), /private-flip-webhook|must-not-be-sent/);
+  assert.equal((await sendFlipNotice('test', details, { ...options, webhook: undefined })).outcome, 'not-configured');
+});

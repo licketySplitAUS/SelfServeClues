@@ -7,6 +7,10 @@ export function blobRepository() {
   // contexts also default to isolation. Neither store is the live clues store.
   const store = process.env.CONTEXT === 'production' ? getStore(options) : getDeployStore(options);
   return {
+    async claimNotification(key) {
+      return (await store.setJSON(`notifications/${key}`, { claimedAt: new Date().toISOString() }, { onlyIfNew: true })).modified;
+    },
+    async releaseNotification(key) { await store.delete(`notifications/${key}`); },
     async control() {
       const record = await store.getWithMetadata('control', { type: 'json' });
       return record ? { value: record.data, etag: record.etag } : { value: null, etag: null };

@@ -1,5 +1,7 @@
 import { authorized, service } from '../lib/history/runtime.mjs';
 import { gzipSync } from 'node:zlib';
+import { notifyFlip } from '../lib/history/notifications.mjs';
+import { centralTime } from '../lib/history/schedule.mjs';
 
 export default async request => {
   const headers = { 'cache-control': 'no-store' };
@@ -15,6 +17,11 @@ export default async request => {
     else if (body.action === 'manual') result = await worker.check({ manualGrid: body.grid });
     else if (body.action === 'word') result = await worker.check({ correction: body.correction });
     else if (body.action === 'rollback') result = await worker.rollback();
+    else if (body.action === 'notify-test') {
+      result = await notifyFlip('test', { date: centralTime(new Date()).date });
+      if (result.outcome !== 'sent') return Response.json({ error: result.outcome === 'not-configured' ? 'The Discord webhook is not configured.' : 'The Discord test could not be delivered.' }, { status: 503, headers });
+      result.message = 'Discord test notification sent.';
+    }
     else if (body.action === 'export') return new Response(gzipSync(JSON.stringify(await worker.backup())), { headers: { ...headers, 'content-type': 'application/gzip', 'content-disposition': 'attachment; filename="babble-history-preview-backup.json.gz"' } });
     else return Response.json({ error: 'Unknown admin action' }, { status: 400, headers });
     return Response.json({ ...result, snapshot: await worker.current() }, { headers });

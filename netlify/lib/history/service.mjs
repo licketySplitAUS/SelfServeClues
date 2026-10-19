@@ -22,7 +22,7 @@ export function makeService({ repo, baseline, archivedGame, fetchImpl = fetch, c
     const snapshot = value?.snapshotKey ? await repo.read(value.snapshotKey)
       : snapshotFor(baseline.aggregate, baseline.games, baseline.current, baseline.dictionary, {
         source: 'import', sourceVersion: baseline.sourceVersion, updatedAt: baseline.importedAt,
-        status: 'Imported database snapshot; automatic publishing is disabled.',
+        status: 'Imported database snapshot.',
       });
     return { ...snapshot, monitor: { lastCheck: value?.lastCheck || null, message: value?.message || null, candidate: value?.candidate || null } };
   }
