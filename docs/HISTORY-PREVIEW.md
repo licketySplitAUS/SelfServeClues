@@ -198,3 +198,12 @@ from trial clues it opens admin. The word's visual style is unchanged, and
 slower clicks reset the count. This is only a navigation shortcut: server-side
 admin actions still require the secret key, which remains out of source control.
 The same local preview key is configured for the production-hosted trial admin.
+
+The visible Clues Administration/sidebar preview notice has been removed.
+Use the five-click Support shortcut to reach admin. The admin status button is
+now Reload saved status: it displays loading/completion feedback, bypasses the
+CDN cache with a fresh query, and explicitly reports unchanged data. A failed
+manual reload keeps the current result and reports the error; it never silently
+replaces current status with the imported fallback. Initial offline loading can
+still use that fallback, with a visible explanation. Checking PlayBabble remains
+a separate authenticated action linked directly from the status explanation.

@@ -26,6 +26,7 @@ app.whenReady().then(async () => {
     assert.equal(await run(`document.querySelector('.page').getBoundingClientRect().width`), 718);
     assert.equal(await run(`getComputedStyle(document.body).fontFamily`), 'Georgia, serif');
     assert.equal(await run(`document.querySelectorAll('.record-date').length`), 2);
+    assert.ok(await run(`!document.querySelector('aside').textContent.includes('Clues Administration') && !document.querySelector('aside').textContent.includes('History preview.')`));
     assert.equal(await run(`typeof window.AddBabbleWord`), 'function');
     assert.ok(await run(`document.documentElement.scrollWidth <= innerWidth`));
     await run(`document.querySelector('.clues input[type=checkbox]').click()`);
@@ -45,6 +46,10 @@ app.whenReady().then(async () => {
     await run(`for(let i=0;i<4;i++) document.querySelector('.support-shortcut').click()`);
     await until(() => run(`document.querySelector('.admin fieldset')`));
     assert.equal(await run(`document.querySelector('.admin fieldset').disabled`), true);
+    await run(`Array.from(document.querySelectorAll('button')).find(button=>button.textContent==='Reload saved status').click()`);
+    await until(() => run(`document.querySelector('[role=alert]')?.textContent.includes('previously displayed result has been kept')`));
+    assert.ok(await run(`document.querySelector('.ok,.review').textContent.includes('197 words')`));
+    assert.equal(await run(`Array.from(document.querySelectorAll('button')).find(button=>button.textContent==='Reload saved status').disabled`), false);
     assert.ok(await run(`document.body.textContent.includes('Find the extra word using stats')`));
     assert.ok(await run(`document.body.textContent.includes('Historical import exceptions')`));
     await run(`Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(document.querySelector('input[type=password]'), 'ui-test-key'); document.querySelector('input[type=password]').dispatchEvent(new Event('input', {bubbles:true}));`);

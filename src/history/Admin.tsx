@@ -21,7 +21,7 @@ export default function Admin({ onSnapshot, snapshot }: { onSnapshot: (snapshot:
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Request failed'); }
     finally { setBusy(false); }
   }
-  return <details className="admin" open><summary>Administration controls</summary>
+  return <details className="admin" id="administration-controls" open><summary>Administration controls</summary>
     <p>These actions affect only the experimental store. The key stays in this page’s memory.</p>
     <label>Preview admin key<input type="password" autoComplete="off" value={key} onChange={event => setKey(event.target.value)} /></label>
     <fieldset disabled={busy || !key}>

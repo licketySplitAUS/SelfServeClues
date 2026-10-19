@@ -17,5 +17,5 @@ export default function HistoryApp() {
   if (!snapshot) return <main className="page"><p role="status">{error || 'Loading clues…'}</p></main>;
   return <SelfServe publishedPuzzle={snapshot.current} dictionaryCount={snapshot.history.dictionaryCount} onRefresh={load}
     statistics={<Statistics snapshot={snapshot} stats={snapshot.history} />}
-    sidebarExtra={<><h3>Clues Administration</h3><a href="/history-admin.html">Admin &amp; exceptions</a><p className="preview-note">History preview. Automatic updates are {snapshot.schedulingEnabled ? 'on' : 'off'}. The date above identifies the saved puzzle.</p>{error && <p role="alert">{error}</p>}</>} />;
+    sidebarExtra={error && <p role="alert">{error}</p>} />;
 }
