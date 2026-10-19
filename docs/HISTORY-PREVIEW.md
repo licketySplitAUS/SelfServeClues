@@ -77,7 +77,6 @@ The new endpoints use a separate URL prefix:
 - `GET /history-api/current`: one saved snapshot; short browser/CDN cache.
 - `POST /history-api/admin`: authenticated preview-only administration.
 - `history-tick`: US Central flip-time scheduled function with an explicit opt-in guard.
-- `history-flip-summary`: at 01:00 Central, checks saved status and alerts Discord if unresolved; never fetches upstream.
 
 Set a new secret **`HISTORY_PREVIEW_ADMIN_KEY`** in Netlify before trying admin
 actions. A missing key fails closed. The admin form keeps the key only in memory.
