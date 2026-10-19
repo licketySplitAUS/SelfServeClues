@@ -588,6 +588,11 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
           <p className="heart"><img src="/MyLogo.jpg" alt="Lickety logo" /></p>
           <a className="promo" href="https://www.playbabble.com/" target="_blank" rel="noreferrer"><img src="/babble.jpg" alt="Babble — come join in the fun" /></a>
           <p className="support">▣ Please <a className="support-shortcut" href={supportDestination} onClick={supportShortcut}>Support</a> Babble<br />and upgrade to Pro.</p>
+          <div className="donation">
+            <p>Don&apos;t need any assistance, but if you feel obliged to donate:</p>
+            <a className="paypal-donate" href="https://www.paypal.com/donate/?business=licketySplitAUS%40gmail.com&amp;item_name=Lickety%27s%20Babble%20Clues&amp;currency_code=AUD" target="_blank" rel="noopener noreferrer">Donate with PayPal</a>
+            <a className="donation-email" href="mailto:licketySplitAUS@gmail.com">licketySplitAUS@gmail.com</a>
+          </div>
           <a href="https://youtu.be/IBgTrBk35uI" target="_blank" rel="noreferrer">Babble Expert - What is it? I explain with this short video</a>
           <a href="https://youtu.be/6ZK0IiQIkk4" target="_blank" rel="noreferrer">Babble Expert V3.2.2.0 Update Demo</a>
           <h3>Download Babble Expert</h3>
