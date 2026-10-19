@@ -11,8 +11,8 @@ type BabbleBridge = Window & {
 
 const values: Record<string, number> = {
   A: 1, B: 3, C: 2, D: 2, E: 1, F: 4, G: 3, H: 2, I: 1,
-  J: 8, K: 5, L: 1, M: 2, N: 1, O: 1, P: 2, Q: 5, Qu: 5, R: 1,
-  S: 1, T: 1, U: 2, V: 4, W: 5, X: 8, Y: 3, Z: 10,
+  J: 6, K: 5, L: 1, M: 2, N: 1, O: 1, P: 2, Q: 5, Qu: 5, R: 1,
+  S: 1, T: 1, U: 2, V: 4, W: 5, X: 6, Y: 3, Z: 6,
 };
 
 function canTrace(word: string, board: string[]) {
