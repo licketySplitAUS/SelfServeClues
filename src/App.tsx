@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 type Clue = { word: string; start: string; length: number; score: number };
 type GridResponse = { letters: string; puzzle: string | null; date?: string | null; changed?: boolean };
@@ -102,7 +103,16 @@ async function readJson<T>(response: Response): Promise<T> {
   return data;
 }
 
-export default function App() {
+type PublishedPuzzle = { puzzle: number; date: string; letters: string; words: { word: string; score: number }[] };
+type AppProps = {
+  publishedPuzzle?: PublishedPuzzle;
+  onRefresh?: () => Promise<void>;
+  statistics?: ReactNode;
+  sidebarExtra?: ReactNode;
+  dictionaryCount?: number;
+};
+
+export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExtra, dictionaryCount }: AppProps = {}) {
   const [grid, setGrid] = useState("");
   const [words, setWords] = useState<string[]>([]);
   const [clues, setClues] = useState<Clue[]>([]);
@@ -129,6 +139,7 @@ export default function App() {
     .map((letter) => letter === "Q" ? "Qu" : letter);
 
   useEffect(() => {
+    if (publishedPuzzle) return;
     async function initialise() {
       try {
         let response = await fetch("/api/wordlist", { cache: "no-store" });
@@ -147,9 +158,20 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!publishedPuzzle) return;
+    setGrid(publishedPuzzle.letters);
+    setPuzzle(String(publishedPuzzle.puzzle));
+    setPuzzleDate(publishedPuzzle.date);
+    setWords(publishedPuzzle.words.map(row => row.word.toUpperCase()));
+    setClues(publishedPuzzle.words.map(row => ({ word: row.word.toUpperCase(), start: row.word.slice(0, 2).toUpperCase(), length: row.word.length, score: row.score }))
+      .sort((a, b) => a.start.localeCompare(b.start) || a.word.localeCompare(b.word)));
+    setStatus("Published clues loaded");
+  }, [publishedPuzzle]);
+
+  useEffect(() => {
     if (!puzzle) return;
     try {
-      const saved = JSON.parse(localStorage.getItem(`babblekey-found-${puzzle}`) || "[]");
+      const saved = JSON.parse(localStorage.getItem(`${publishedPuzzle ? 'babble-history-found' : 'babblekey-found'}-${puzzle}`) || "[]");
       foundRef.current = saved;
       setFound(saved);
     } catch {
@@ -164,7 +186,7 @@ export default function App() {
   }, [found, clues, view, filter]);
 
   useEffect(() => {
-    if (words.length && grid.replace(/[^A-Z]/gi, "").length === 25) solve();
+    if (!publishedPuzzle && words.length && grid.replace(/[^A-Z]/gi, "").length === 25) solve();
   }, [words, grid]);
 
   const visible = useMemo(
@@ -176,7 +198,7 @@ export default function App() {
   );
 
   const counts = useMemo(
-    () => [4, 5, 6, 7, 8, 9].map((length) => {
+    () => [...new Set([4, 5, 6, 7, 8, ...clues.map(clue => clue.length)])].sort((a, b) => a - b).map((length) => {
       const rows = clues.filter((clue) => clue.length === length);
       return {
         length,
@@ -227,6 +249,7 @@ export default function App() {
   }
 
   async function grab(automatic = false) {
+    if (publishedPuzzle) { await onRefresh?.(); return; }
     if (grabInFlight.current) return;
     grabInFlight.current = true;
     setStatus("Checking today’s puzzle…");
@@ -273,7 +296,7 @@ export default function App() {
     const next = current.includes(word) ? current.filter((item) => item !== word) : [...current, word];
     foundRef.current = next;
     setFound(next);
-    if (puzzle) localStorage.setItem(`babblekey-found-${puzzle}`, JSON.stringify(next));
+    if (puzzle) localStorage.setItem(`${publishedPuzzle ? 'babble-history-found' : 'babblekey-found'}-${puzzle}`, JSON.stringify(next));
   }
 
   function fillAnswer(word: string) {
@@ -292,7 +315,7 @@ export default function App() {
     const next = [...foundRef.current, word];
     foundRef.current = next;
     setFound(next);
-    if (puzzle) localStorage.setItem(`babblekey-found-${puzzle}`, JSON.stringify(next));
+    if (puzzle) localStorage.setItem(`${publishedPuzzle ? 'babble-history-found' : 'babblekey-found'}-${puzzle}`, JSON.stringify(next));
     fillAnswer(word);
     return "1";
   }
@@ -403,12 +426,12 @@ export default function App() {
         </div>
         <section className="left">
           <button className="grabgrid" type="button" onClick={() => void grab()}>Grab Grid</button>
-          <div className="controlrow">
+          {!publishedPuzzle && <div className="controlrow">
             <label className="upload">
               {words.length ? "Replace Lists" : "Load Lists"}
               <input type="file" accept=".csv,.txt" multiple onChange={(event) => void load(event.target.files)} />
             </label>
-          </div>
+          </div>}
           <p className="status">{status}</p>
           <form className="wordentry" onSubmit={(event) => { event.preventDefault(); addEnteredWord(); }}>
             <label className="visuallyhidden" htmlFor="add-word">Add word</label>
@@ -522,6 +545,7 @@ export default function App() {
           {highest.map((clue) => <p key={clue.word}>{clue.start.toLowerCase()}{clue.length},{clue.score}</p>)}
           <a className="back" href="#top">Back to top</a>
           <div className="rule" />
+          {statistics}
         </section>
 
         <aside>
@@ -538,7 +562,8 @@ export default function App() {
           <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">lickety&apos;s Babble Clues</a>
           <a href="#top">Back to top</a>
           <h3>Word Lists</h3>
-          <span>{words.length.toLocaleString()} saved words</span>
+          <span>{(dictionaryCount ?? words.length).toLocaleString()} saved words</span>
+          {sidebarExtra}
         </aside>
       </div>
     </main>

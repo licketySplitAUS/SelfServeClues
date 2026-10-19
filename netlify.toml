@@ -6,6 +6,11 @@
 [build.environment]
   NODE_VERSION = "22"
 
+# Only the isolated experiment needs the imported archive in its server bundle.
+[functions."history-*"]
+  node_bundler = "esbuild"
+  included_files = ["data/history/**"]
+
 [[headers]]
   for = "/BabbleWordList.csv"
   [headers.values]

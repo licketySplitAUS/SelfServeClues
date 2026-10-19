@@ -7,6 +7,9 @@
     "node": ">=22.12.0"
   },
   "scripts": {
+    "history:import": "node tools/history/import.mjs",
+    "history:verify": "node tools/history/verify.mjs",
+    "history:preview": "node tools/history/serve.mjs",
     "dev": "netlify dev",
     "build": "vite build",
     "preview": "vite preview",
