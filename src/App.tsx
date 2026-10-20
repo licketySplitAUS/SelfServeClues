@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
+import LoadingClues from './LoadingClues';
 
 type Clue = { word: string; start: string; length: number; score: number };
 type GridResponse = { letters: string; puzzle: string | null; date?: string | null; changed?: boolean };
@@ -117,6 +118,8 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   const [grid, setGrid] = useState("");
   const [words, setWords] = useState<string[]>([]);
   const [clues, setClues] = useState<Clue[]>([]);
+  const [initialising, setInitialising] = useState(!publishedPuzzle);
+  const [hasSolved, setHasSolved] = useState(false);
   const [filter, setFilter] = useState("");
   const [view, setView] = useState<"all" | "on" | "off">("all");
   const [found, setFound] = useState<string[]>([]);
@@ -176,6 +179,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
       }
 
       await grab(true);
+      setInitialising(false);
     }
     void initialise();
   }, []);
@@ -312,6 +316,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
         }))
         .sort((a, b) => a.start.localeCompare(b.start) || a.word.localeCompare(b.word)),
     );
+    setHasSolved(true);
   }
 
   function toggle(word: string) {
@@ -428,6 +433,8 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
       if (bridge.AddBulkWord === externalBulk) delete bridge.AddBulkWord;
     };
   }, [clues, puzzle, bulkWords]);
+
+  if (!publishedPuzzle && (initialising || (!hasSolved && words.length > 0 && /^[A-Z]{25}$/i.test(grid)))) return <LoadingClues />;
 
   if (printable) return (
     <main className="printable-document">
