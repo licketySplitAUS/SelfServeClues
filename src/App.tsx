@@ -447,17 +447,25 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
         <h1>lickety&apos;s Self Serve Babble Clues</h1>
         <p>
           Check boxes &amp; type-in boxes for the word if you think it&apos;s the one.{" "}
-          <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">Visit lickety&apos;s original clues</a>{" "}
+          {!publishedPuzzle && <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">Visit lickety&apos;s original clues</a>}{" "}
         </p>
       </header>
 
       <div className="content">
         <div className="mainlead">
-          <div className="toplinks">
-            <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer"><b>lickety&apos;s Clues Page</b></a>
-            <a href="#BulkAdd"><b>Bulk Add / Grab</b></a>
-          </div>
-          <a className="printable-link" href={`${publishedPuzzle ? '/history-preview.html' : '/'}?print=1`} target="_blank" rel="noopener noreferrer"><b>Printable Clues (no boxes). Click here</b></a>
+          {publishedPuzzle ? <>
+            <div className="toplinks">
+              <a href="/history-preview.html?print=1" target="_blank" rel="noopener noreferrer"><b>Printable Clues (no boxes). Click here</b></a>
+              <a href="#BulkAdd"><b>Bulk Add / Grab</b></a>
+            </div>
+            <a href="/"><b>Self Serve Clues</b></a>
+          </> : <>
+            <div className="toplinks">
+              <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer"><b>lickety&apos;s Clues Page</b></a>
+              <a href="#BulkAdd"><b>Bulk Add / Grab</b></a>
+            </div>
+            <a className="printable-link" href="/?print=1" target="_blank" rel="noopener noreferrer"><b>Printable Clues (no boxes). Click here</b></a>
+          </>}
           <h2>Babble Clues {puzzle ? `for Puzzle ${puzzle}${puzzleDate ? ` - ${formatPuzzleDate(puzzleDate)}` : ""}` : "for Today"}</h2>
         </div>
         <section className="left">
