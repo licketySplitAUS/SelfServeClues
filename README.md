@@ -2,6 +2,8 @@
 
 This is a normal Vite/React site prepared for Netlify. The frontend is static, while Netlify Functions provide the shared daily grid, optional shared word-list replacement and Babble Expert usage notifications.
 
+**[System documentation, architecture diagrams and recovery handbook](docs/README.md)** — storage, daily triggers, official validation, publication, what is backed up, restoring runtime data and exporting grids to SQL Server. Admin’s **Backup & recovery** section downloads all runtime data, SQL staging exports and a standalone emergency clues page. GitHub contains source and imported history; subsequent runtime data and secret values require separate backups.
+
 ## Deploy with GitHub
 
 1. Create a new GitHub repository.
