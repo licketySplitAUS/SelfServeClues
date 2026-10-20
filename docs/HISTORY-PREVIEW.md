@@ -288,3 +288,37 @@ and the app version. It forwards those fields to the message channel with
 mentions disabled. It works independently of usage sharing. The desktop never
 sends drafts or opens the message composer automatically. Routing changes are
 not listed in Babble Expert release notes; the player-facing message feature is.
+
+## Publishing the new tool at r46.me
+
+The authenticated Admin page now includes Public clues page → Use new clues at
+r46.me/babbleclues. Off keeps the legacy page; on serves history-preview.html
+through same-team Netlify rewrites. The browser retains the r46.me address.
+
+The Admin selection is stored in the production-only babble-publication Blob
+store. The selected boolean is passed to a build hook and read again by every
+Babble repository build, including legacy solver pushes. The build assigns its
+USE_NEW_BABBLE_CLUES value from that saved selection and generates _redirects.
+The Admin setting is the source of truth; no Netlify dashboard variable edit or
+manual deployment is needed. BABBLE_PUBLICATION_BUILD_HOOK is a server-only
+production Functions secret. Account API credentials are not stored in functions.
+
+The hook belongs to the babbleclues project on branch main. The Babble repository
+build script copies tracked static public files into dist, retains a legacy copy,
+and adds proxy routes for app assets, APIs, history data and printing. No puzzle
+solver or credentials are copied to the legacy project. Untracked files do not ship.
+
+clues-publication.json records the mode and operation ID included in a deployed
+site. Admin polls this marker to distinguish a saved choice from a live change.
+Unacknowledged hooks remain unverified until the matching operation is published;
+failed or delayed requests can be retried. Failed builds preserve the prior site.
+
+Before launch, stop the old solver's Git publishing, then enable the Admin switch.
+The new solver's existing schedule continues unchanged. NotifyBabblersOfClues is
+independent and remains false until deliberately enabled. Turning the publication
+switch off redeploys the preserved legacy page; restart the old solver if it should
+resume daily updates. New history and corrections remain intact after rollback.
+
+Permanent review URLs are https://r46.me/new-babbleclues and
+https://r46.me/legacy-babbleclues. The main /babbleclues path stays legacy until
+Admin explicitly switches it on. Other r46.me pages and downloads remain available.

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Diagnostics from './Diagnostics';
+import PublicationControl from './PublicationControl';
 import type { Snapshot } from './types';
 export default function Admin({ onSnapshot, snapshot }: { onSnapshot: (snapshot: Snapshot) => void; snapshot?: Snapshot }) {
   const [key, setKey] = useState(''), [busy, setBusy] = useState(false), [message, setMessage] = useState('');
@@ -22,8 +23,9 @@ export default function Admin({ onSnapshot, snapshot }: { onSnapshot: (snapshot:
     finally { setBusy(false); }
   }
   return <details className="admin" id="administration-controls" open><summary>Administration controls</summary>
-    <p>These actions affect only the experimental store. The key stays in this page’s memory.</p>
+    <p>The publication switch controls the public r46.me clues page. Puzzle administration below manages the saved clues and history. The key stays in this page’s memory.</p>
     <label>Preview admin key<input type="password" autoComplete="off" value={key} onChange={event => setKey(event.target.value)} /></label>
+    <PublicationControl adminKey={key} />
     <fieldset disabled={busy || !key}>
       <button onClick={() => void run({ action: 'notify-test' })}>Send Discord flip test</button>
       <button onClick={() => void run({ action: 'notify-current' })}>Send current validation report to Discord</button>
