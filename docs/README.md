@@ -9,6 +9,7 @@ Start here for the system that supplies Lickety’s clues, Self Serve, the histo
 | [SQL Server failover](SQL-SERVER-FAILOVER.md) | Grid/word exports, old database mappings, staging SQL, returning to the old generator |
 | [Operations](OPERATIONS.md) | Daily checks, settings, safe troubleshooting and deployment |
 | [Recovery verification record](RECOVERY-DRILL.md) | What was actually backed up and tested, and the drills still outstanding |
+| [Small daily GitHub backups](GITHUB-BACKUPS.md) | Low-usage validated puzzle checkpoints, ready-to-use private-repository workflow and recovery commands |
 
 **Current position:** code and imported historical data are in GitHub. New runtime data lives in Netlify Blobs and needs its own backup. Both public web projects use Netlify; switching to the old clues page is not protection against a complete Netlify outage. A downloadable recovery pack and a standalone emergency page make the data portable. An independent standby host and DNS cutover remain operator tasks.
 

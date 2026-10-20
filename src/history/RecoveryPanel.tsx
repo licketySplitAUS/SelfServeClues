@@ -31,6 +31,9 @@ export default function RecoveryPanel({ adminKey }: { adminKey: string }) {
       <button onClick={() => void download('format=html')}>Download emergency clues page</button>
     </fieldset>
     <p>SQL downloads create recovery staging tables. The full historical SQL export and restore tools are in the <a href="https://github.com/licketySplitAUS/SelfServeClues/blob/main/docs/DISASTER-RECOVERY.md" target="_blank" rel="noreferrer">recovery guide</a>. These downloads do not change the live site.</p>
+    <h4>Small daily backups to GitHub</h4>
+    <p>A prepared GitHub workflow can collect today’s validated puzzle and dictionary corrections once a day, committing only new or changed data to a private backup repository. It avoids website builds and needs no GitHub write token in Netlify. This complements the full runtime backup.</p>
+    <p>Automatic backup requires installing the workflow in your backup repository. These Admin controls do not configure or verify that connection. See <a href="https://github.com/licketySplitAUS/SelfServeClues/blob/main/docs/GITHUB-BACKUPS.md" target="_blank" rel="noreferrer">GitHub backup setup and recovery</a>.</p>
     <p role="status">{message}</p>
   </details>;
 }

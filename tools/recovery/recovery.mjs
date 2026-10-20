@@ -12,11 +12,13 @@ import { downloadRecovery } from '../../shared/recovery-download.mjs';
 import { verifyBackup, restoreBackup, digest } from '../../netlify/lib/recovery.mjs';
 import { sqlExport, emergencyPage } from '../../netlify/lib/recovery-exports.mjs';
 import { solveGrid, validIdentity } from '../../netlify/lib/history/solver.mjs';
+import { verifyCheckpoint } from './puzzle-checkpoint.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const [command, ...args] = process.argv.slice(2);
 function option(name, fallback) { const i = args.indexOf(`--${name}`); return i < 0 ? fallback : args[i + 1]; }
 const load = async file => JSON.parse(gunzipSync(await fs.readFile(file)));
+const view = data => data.kind === 'validated-puzzle' ? verifyCheckpoint(data) : verifyBackup(data);
 async function exclusive(file, data) { await fs.mkdir(path.dirname(path.resolve(file)), { recursive: true }); await fs.writeFile(file, data, { flag: 'wx' }); }
 async function backup() {
   const origin = option('origin', 'https://selfserve.r46.me');
@@ -46,7 +48,8 @@ function* allGames(backup, baseline) {
 }
 async function exportSQL(data, output, scope) {
   if (!['current', 'delta', 'all'].includes(scope) || !output) throw new Error('SQL export requires --scope current|delta|all and --out <file.sql.gz>.');
-  const { state, snapshot } = verifyBackup(data);
+  if (data.kind === 'validated-puzzle' && scope !== 'current') throw new Error('A puzzle checkpoint supports --scope current only. Full-history exports need a full runtime backup.');
+  const { state, snapshot } = view(data);
   const baseline = JSON.parse(gunzipSync(await fs.readFile(path.join(root, 'data/history/baseline.json.gz'))));
   const games = scope === 'all' ? allGames(data, baseline) : scope === 'delta' ? Object.values(state?.puzzles || {}) : [snapshot?.current || baseline.current];
   await pipeline(Readable.from(sqlExport(games, state?.corrections || {})), createGzip({ level: 9 }), createWriteStream(output, { flags: 'wx' }));
@@ -107,10 +110,11 @@ async function main() {
   }
   const input = option('input');
   if (!input) throw new Error('Commands: backup, pack, verify, verify-pack, sql, static, restore. See docs/DISASTER-RECOVERY.md.');
-  const data = await load(input), result = verifyBackup(data);
+  const data = await load(input), result = view(data);
+  const baselineVersion = data.kind === 'validated-puzzle' ? data.baselineVersion : data.inventory.baselineVersion;
   if (command === 'solve') {
     const baseline = JSON.parse(gunzipSync(await fs.readFile(path.join(root, 'data/history/baseline.json.gz'))));
-    if (baseline.sourceVersion !== data.inventory.baselineVersion) throw new Error('Use the baseline matching this backup.');
+    if (baseline.sourceVersion !== baselineVersion) throw new Error('Use the baseline matching this backup.');
     const grid = { puzzle: Number(option('puzzle')), date: option('date'), letters: (option('letters', '')).replace(/\s/g, '').toUpperCase() };
     if (!validIdentity(grid) || !option('out')) throw new Error('Solve requires --puzzle <number> --date YYYY-MM-DD --letters <25 tiles> --out <clues.html>.');
     const dictionary = new Set(baseline.dictionary);
@@ -125,10 +129,11 @@ async function main() {
     if (option('sql-out')) await pipeline(Readable.from(sqlExport([game], result.state?.corrections || {})), createGzip(), createWriteStream(option('sql-out'), { flags: 'wx' }));
     console.log(`Offline solution: ${words.length} words, ${game.totalScore} points. Not officially validated. Keep the .game.json for reconciliation.`); return;
   }
-  if (command === 'verify') { console.log(JSON.stringify({ records: result.count, baselineVersion: data.inventory.baselineVersion, exportedAt: data.inventory.exportedAt, puzzle: result.snapshot?.current?.puzzle })); return; }
+  if (command === 'verify') { console.log(JSON.stringify({ kind: data.kind || 'runtime-backup', records: result.count, baselineVersion, puzzle: result.snapshot?.current?.puzzle })); return; }
   if (command === 'sql') { await exportSQL(data, option('out'), option('scope', 'current')); return; }
   if (command === 'static') { await exclusive(option('out', 'babbleclues.html'), emergencyPage(result.snapshot?.current || JSON.parse(gunzipSync(await fs.readFile(path.join(root, 'data/history/baseline.json.gz')))).current)); return; }
   if (command === 'restore') {
+    if (data.kind === 'validated-puzzle') throw new Error('A puzzle checkpoint is not a full runtime backup. Use static or sql recovery; full-site restore requires all runtime data.');
     const siteID = option('site');
     if (!/^[a-f0-9-]{36}$/.test(siteID || '') || !process.env.NETLIFY_AUTH_TOKEN) throw new Error('Supply --site <target UUID> and NETLIFY_AUTH_TOKEN.');
     // Restore to a NEW site only. The source site must never be overwritten.

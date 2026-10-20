@@ -28,6 +28,10 @@ The new recovery downloads cover the four application runtime stores. The local 
 
 The source bundles contain **committed Git data only**, including local committed refs. Uncommitted and untracked files are excluded deliberately, and the manifest reports whether a source folder was dirty. Do not assume a Git bundle contains locally generated installers or private configuration.
 
+## Low-usage GitHub backup option
+
+For daily protection of correctly solved puzzles, see [Small daily GitHub backups](GITHUB-BACKUPS.md). The prepared workflow collects one validated puzzle checkpoint after the flip window, stores only new/changed content in a private repository, and triggers no website builds. It is a complementary strategy to the full runtime pack. Installing/enabling that workflow in the backup repository is a separate setup step; it is not activated by the Admin controls.
+
 ## Admin downloads
 
 Open [Admin](https://selfserve.r46.me/history-admin.html), enter the admin key, then expand **Backup & recovery**:

@@ -1,0 +1,45 @@
+# TEMPLATE: copy to .github/workflows/babble-backup.yml in a separate PRIVATE
+# backup repository. This location deliberately does not activate a workflow.
+name: Back up validated Babble puzzle
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 8 * * *' # 08:23 UTC, after the normal flip retry window
+permissions:
+  contents: write
+concurrency:
+  group: babble-puzzle-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out private backup repository
+        uses: actions/checkout@v7.0.1
+        with:
+          path: backup
+      - name: Check out recovery tool
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: licketySplitAUS/SelfServeClues
+          ref: main # Prefer a reviewed commit SHA when installing this template.
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '22'
+      - name: Fetch and verify today's saved solution
+        run: node source/tools/recovery/puzzle-checkpoint.mjs --out backup/puzzles
+      - name: Commit only a new or changed checkpoint
+        working-directory: backup
+        run: |
+          git add -- puzzles/
+          if git diff --cached --quiet; then
+            echo "No changed puzzle; no commit needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Back up validated Babble puzzle [skip netlify]"
+          git push
