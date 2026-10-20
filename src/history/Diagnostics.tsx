@@ -12,7 +12,7 @@ export default function Diagnostics({ snapshot, onSelect }: { snapshot: Snapshot
   const row = (key: string, label: string, actual: number) => <tr key={key} className={diff(key, actual) ? 'difference' : ''}><td>{label}</td><td>{actual}</td><td><input aria-label={`PlayBabble ${label}`} type="number" min="0" value={official[key] || ''} onChange={event => set(key, event.target.value)} /></td><td>{delta(diff(key, actual))}</td></tr>;
   const lengths = [...new Set([4, 5, 6, 7, 8, 9, ...snapshot.current.words.map(word => word.word.length)])].sort((a, b) => a - b);
   const words = snapshot.current.words.filter(row => (!length || row.word.length === Number(length)) && row.word.startsWith(start.toLowerCase()));
-  return <section className="diagnostics"><h2>Compare PlayBabble stats</h2>
+  return <section className="diagnostics"><h3>Manual PlayBabble comparison</h3>
     <p>Keep your normal PlayBabble login in another tab. Enter the statistics you see there for <b>puzzle #{snapshot.current.puzzle}, {snapshot.current.date}</b>. Blank fields mean unknown; enter 0 for a known zero. These comparison notes stay in this browser for this puzzle.</p>
     <table><thead><tr><th>Statistic</th><th>Our clues</th><th>PlayBabble</th><th>Difference</th></tr></thead><tbody>{row('total', 'total words', snapshot.current.totalWords)}{row('points', 'total points', snapshot.current.totalScore)}</tbody></table>
     <details open><summary>Counts by word length</summary><table><thead><tr><th>Length</th><th>Our clues</th><th>PlayBabble</th><th>Difference</th></tr></thead><tbody>{lengths.map(value => row(`length-${value}`, `${value} letters`, snapshot.today.counts[value]?.count || 0))}</tbody></table></details>

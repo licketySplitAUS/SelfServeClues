@@ -27,3 +27,5 @@
 .admin-page .diagnostics input[type=number] { box-sizing: border-box; width: 75px; }
 .admin-page .difference { background: #fff0c2; font-weight: bold; }
 @media (max-width: 500px) { .admin-page .diagnostics th, .admin-page .diagnostics td { padding: 4px 2px; font-size: .9em; } .admin-page .diagnostics input[type=number] { width: 58px; } }
+.admin-page .validation-comparison th[scope=row] { font-weight: normal; }
+.admin-page .validation-comparison .difference { background: #fff0c2; font-weight: bold; }

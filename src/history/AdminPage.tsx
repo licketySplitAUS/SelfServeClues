@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import type { Audit, Snapshot } from './types';
 import Admin from './Admin';
+import ValidationComparison from './ValidationComparison';
 export default function AdminPage() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null), [audit, setAudit] = useState<Audit | null>(null), [error, setError] = useState('');
   const [loading, setLoading] = useState(false), [refreshMessage, setRefreshMessage] = useState('');
@@ -35,12 +36,10 @@ export default function AdminPage() {
         <p><b>Puzzle #{snapshot.current.puzzle} — {snapshot.current.date}</b><br />{snapshot.current.totalWords} words · {snapshot.current.totalScore} points</p>
         <p>Automatic checks: <b>{snapshot.schedulingEnabled ? 'enabled' : 'disabled during preview testing'}</b><br />Last upstream check: {snapshot.monitor?.lastCheck ? new Date(snapshot.monitor.lastCheck).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }) + ' (Sydney)' : 'No check recorded'}</p>
         <p>{snapshot.monitor?.message || snapshot.status}</p>
-        <p><b>PlayBabble validation: {snapshot.current.validation?.status || 'not yet checked'}</b><br />{snapshot.current.validation?.message || 'The next automatic check will log in and compare official word counts.'}</p>
-        {snapshot.current.validation && <p>Checked: {new Date(snapshot.current.validation.checkedAt).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })} (Sydney). Tested {snapshot.current.validation.tested} candidate words.<br />Bad words automatically excluded: {(snapshot.current.validation.excluded || snapshot.current.validation.rejected).join(', ') || 'none'}.</p>}
-        {snapshot.current.validation?.differences && <details><summary>Count differences (our clues minus PlayBabble)</summary><pre>{JSON.stringify(snapshot.current.validation.differences, null, 2)}</pre></details>}
         {snapshot.monitor?.candidate && <p><b>Waiting for review:</b> puzzle #{snapshot.monitor.candidate.puzzle}, {snapshot.monitor.candidate.date}. Check its number, date and grid against PlayBabble before accepting.</p>}
       </div><button disabled={loading} onClick={() => void load(true)}>{loading ? 'Reloading…' : 'Reload saved status'}</button>
       <p role="status" aria-live="polite">{refreshMessage}</p>
+      <ValidationComparison snapshot={snapshot} />
       <p>This reloads the saved result. To look for a new grid, enter your admin key below and choose <a href="#administration-controls">Check PlayBabble now</a>.</p>
       <p>Automatic schedule (US Central): every minute from {time(start)}–{time(start + 9)}, every five minutes from {time(start + 10)}–{time(start + 29)}, then every ten minutes from {time(start + 30)}–{time(start + 59)}. Checks stop once today's puzzle is validated, or at {time(start + 60)} if it has not flipped. Daylight saving is handled automatically.</p>
       <p>The Netlify environment variable <code>HISTORY_PREVIEW_START_MINUTE</code> sets the minutes after midnight to begin (0–59). Change it in Project configuration → Environment variables, then redeploy to apply. The preview keeps the previous puzzle until a new one is published; a new grid still needs two observations.</p>
@@ -49,7 +48,7 @@ export default function AdminPage() {
         <li><b>Late grid or a failed check:</b> choose “Check PlayBabble now”. A repeat of the same grid leaves history unchanged. Automatic retries run for one hour from {time(start)} US Central, keeping the last good puzzle while waiting. After {time(start + 60)}, check manually if it still has not flipped.</li>
         <li><b>A new grid is waiting:</b> verify it on PlayBabble. A second observation after 20 seconds can publish it, or choose “Check and accept current upstream grid” after checking it yourself. This does not skip identity validation.</li>
         <li><b>One rejected or missing word:</b> verify the word on PlayBabble, enter it in Word correction, choose Exclude or Include, give a reason, then apply. The puzzle and statistics rebuild automatically; future puzzles remember the correction.</li>
-        <li><b>Find the extra word using stats:</b> log in to PlayBabble in your usual browser and look at its statistics. Under Compare PlayBabble stats below, enter its total, word-length counts and starting-letter counts. The differences show where to look. Filter the candidate list by length and starting letter, then select a word to fill Word correction. Verify the word before excluding it. A count difference alone cannot identify which word is wrong.</li>
+        <li><b>Find the extra word using stats:</b> check the saved PlayBabble comparison above first. If automatic validation cannot complete, expand Advanced troubleshooting under Administration controls to enter counts manually and filter candidate words. Verify a word on PlayBabble before excluding it.</li>
         <li><b>Wrong grid or upstream broken:</b> use Manual grid with its official puzzle number, date, 25 tiles and a reason. Q represents one Qu tile.</li>
         <li><b>Undo a mistake:</b> Restore imported dictionary decision undoes a word override. Restore previous preview returns to the prior saved data generation. Download a backup after corrections and before a new preview deployment.</li>
       </ol>

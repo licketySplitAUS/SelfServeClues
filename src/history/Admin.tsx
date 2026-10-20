@@ -28,7 +28,10 @@ export default function Admin({ onSnapshot, snapshot }: { onSnapshot: (snapshot:
       <button onClick={() => void run({ action: 'notify-test' })}>Send Discord flip test</button>
       <button onClick={() => void run({ action: 'notify-current' })}>Send current validation report to Discord</button>
       <div className="actions"><button onClick={() => void run({ action: 'check' })}>Check PlayBabble now</button><button onClick={() => void run({ action: 'check', accept: true })}>Check and accept current upstream grid</button><button onClick={() => void run({ action: 'rebuild' })}>Re-solve published preview grid</button></div>
-      {snapshot && <Diagnostics key={snapshot.current.puzzle} snapshot={snapshot} onSelect={value => { setWord(value); setWordAction('exclude'); document.getElementById('correction-word')?.focus(); }} />}
+      {snapshot && <details><summary>Advanced troubleshooting</summary>
+        <p>Use this manual comparison if automatic validation cannot complete. Entered counts stay in this browser and do not change the saved automatic result.</p>
+        <Diagnostics key={snapshot.current.puzzle} snapshot={snapshot} onSelect={value => { setWord(value); setWordAction('exclude'); document.getElementById('correction-word')?.focus(); }} />
+      </details>}
       <h4>Word correction</h4>
       <label>Word<input id="correction-word" value={word} onChange={event => setWord(event.target.value)} /></label>
       <label>Action<select value={wordAction} onChange={event => setWordAction(event.target.value)}><option value="exclude">Exclude rejected word</option><option value="include">Include accepted word</option><option value="restore">Restore imported dictionary decision</option></select></label>
