@@ -2,11 +2,17 @@
 
 [Documentation home](README.md) · [Full recovery guide](DISASTER-RECOVERY.md)
 
-**Yes: each correctly solved puzzle can be saved in GitHub as a useful independent backup.** A compact checkpoint contains the official puzzle identity, tile grid, solved words, scores, starting positions, saved validation result, dictionary corrections and imported-baseline version. It excludes the large derived statistics and visit ledger.
+Keep a small GitHub copy of each puzzle after its word counts have been checked against Babble. That copy can recreate the day's clues page or supply the puzzle data for SQL Server recovery.
+
+**The backup tools are ready, but automatic daily backup has not been enabled.** The setup steps below explain how to enable it in a separate private GitHub repository.
 
 ## Recommended approach: GitHub collects the validated result
 
-Use a **separate private backup repository**, with a small GitHub Actions job once a day after the flip-check window. The job fetches the saved result, verifies that it is today's US Central puzzle with `matched` or `corrected` status, checks word/point totals, compresses it and commits it only if the content changed.
+GitHub runs a short task once a day after the normal puzzle checks finish:
+
+1. Read today's saved puzzle from the clues service.
+2. Confirm that its validation status is `matched` or `corrected`, and check the word and point totals.
+3. Save a compressed copy in a **separate private backup repository**. Save another copy only when the puzzle or its corrections change.
 
 ```mermaid
 sequenceDiagram
@@ -18,11 +24,15 @@ sequenceDiagram
     Solver->>PB: Solve and compare official totals
     Solver->>Saved: Publish solution and validation
     Job->>Saved: One daily read after flip window
-    Job->>Job: Require today's matched/corrected puzzle; verify totals
+    Job->>Job: Check today's validation status and totals
     Job->>Repo: Commit small compressed checkpoint if changed
 ```
 
-This keeps GitHub write credentials out of Netlify. The job uses its own repository-scoped `GITHUB_TOKEN`, and reads the same public saved snapshot already used by the clues page; no Babble password, Netlify token or Admin key is needed. The private repository should have no Netlify project connected to it, so backup commits cause no website builds. The template also uses `[skip netlify]` in its commit message; Netlify documents that marker in [Manage deploys](https://docs.netlify.com/deploy/manage-deploys/manage-deploys-overview/).
+Each saved copy includes the puzzle number and date, grid, words, scores, starting positions, validation result and dictionary corrections. It also records which imported dictionary version it needs. This small file is called a **puzzle checkpoint** in the tools below.
+
+The task reads the same public saved result used by the clues page. It needs no Babble password, Netlify token or Admin key. GitHub supplies a temporary `GITHUB_TOKEN` to write to the private backup repository; no GitHub write token is stored in Netlify.
+
+Keep the backup repository disconnected from Netlify so its commits cause no website builds. The template also adds `[skip netlify]` to its commit messages, as described in Netlify's [Manage deploys](https://docs.netlify.com/deploy/manage-deploys/manage-deploys-overview/) guide.
 
 The supplied schedule is **08:23 UTC daily**, after the normal flip retry window in both US Central daylight and standard time. It is not an immediate callback from the solver. GitHub schedules can be delayed, and the workflow must be on the backup repository's default branch; see [GitHub workflow triggers](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule). A direct event-triggered push is also possible, but needs additional credential/integration setup and reliable delivery/retry handling. The daily collector is the simpler first step.
 

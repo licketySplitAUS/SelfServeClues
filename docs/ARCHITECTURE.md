@@ -91,13 +91,13 @@ sequenceDiagram
     Solver->>PB: Log in and compare official fixed totals
     alt Counts differ
         Solver->>Solver: Narrow candidates by size and starting letters / prefixes
-        Solver->>PB: Test suspect words; track found versus total
+        Solver->>PB: Test suspect words and track found versus total
         PB-->>Solver: Accepted / explicit dictionary rejection / board rejection
-        Solver->>Solver: Exclude only explicit dictionary rejections; re-solve
+        Solver->>Solver: Exclude explicit dictionary rejections and solve again
     end
     Solver->>Store: Create immutable puzzle, state and snapshot
     Solver->>Store: Conditional update of control pointer
-    Job->>Notice: Validation report; bad words as spoilers
+    Job->>Notice: Validation report with bad words hidden as spoilers
     opt Chat enabled and validation matched or corrected
         Notice->>PB: Clues are up! (once per puzzle)
     end
