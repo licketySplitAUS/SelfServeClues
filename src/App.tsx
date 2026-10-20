@@ -624,6 +624,11 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
           <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">lickety&apos;s Babble Clues</a>
           <a href="#top">Back to top</a>
           <h3>Word Lists</h3>
+          <nav className="word-list-links" aria-label="Word lists by length">
+            {Array.from({ length: 9 }, (_, index) => index + 4).map(length =>
+              <a key={length} href={`https://r46.me/words-${length}.html`} target="_blank" rel="noopener noreferrer">{length}-letter words</a>
+            )}
+          </nav>
           <span>{(dictionaryCount ?? words.length).toLocaleString()} saved words</span>
           <VisitCounter />
           {sidebarExtra}
