@@ -2,6 +2,7 @@
 import type { Audit, Snapshot } from './types';
 import Admin from './Admin';
 import ValidationComparison from './ValidationComparison';
+import InceptionDate from '../InceptionDate';
 export default function AdminPage() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null), [audit, setAudit] = useState<Audit | null>(null), [error, setError] = useState('');
   const [loading, setLoading] = useState(false), [refreshMessage, setRefreshMessage] = useState('');
@@ -59,5 +60,6 @@ export default function AdminPage() {
       <details><summary>Current solution (contains spoilers)</summary><pre>{snapshot.current.words.map(row => `${row.word}\t${row.score}`).join('\n')}</pre></details>
     </>}
     {audit && <details><summary>Historical import exceptions</summary><p>These are problems found in the old database, separate from today's puzzle. They have been preserved for review.</p><p>{audit.duplicatePuzzles.length} extra puzzle records; {audit.missingPuzzles.length} missing puzzle numbers; {audit.invalidGrids.length} malformed grids; {audit.mismatchedTotals.length} stored-total mismatches.</p><p>The preview uses one record per puzzle (highest GameID). Duplicates and gaps need review before replacing the original page.</p><a href="/history-preview-data/audit.json" target="_blank" rel="noreferrer">Download the full exception report</a></details>}
+    <InceptionDate />
   </main>;
 }

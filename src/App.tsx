@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import LoadingClues from './LoadingClues';
+import VisitCounter from './VisitCounter';
+import InceptionDate from './InceptionDate';
 
 type Clue = { word: string; start: string; length: number; score: number };
 type GridResponse = { letters: string; puzzle: string | null; date?: string | null; changed?: boolean };
@@ -443,6 +445,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
     <main className="printable-document">
       <div className="print-toolbar"><a href={publishedPuzzle ? previewPath : selfServePath}>Back to clues</a><button type="button" disabled={!clues.length} onClick={() => window.print()}>Print</button></div>
       <p className="print-credit">Printable Babble Clues&nbsp;&nbsp; <small>brought to you by licketySplitAUS</small></p>
+      <InceptionDate />
       <h1>Babble Clues {puzzle ? `for Puzzle ${puzzle}${puzzleDate ? ` - ${formatPuzzleDate(puzzleDate)}` : ''}` : 'for Today'}</h1>
       {clues.length ? <div className="printable-clues">{clues.map((clue, index) => <Fragment key={clue.word}>
         {index > 0 && clues[index - 1].start !== clue.start && <div className="printable-gap" />}
@@ -622,6 +625,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
           <a href="#top">Back to top</a>
           <h3>Word Lists</h3>
           <span>{(dictionaryCount ?? words.length).toLocaleString()} saved words</span>
+          <VisitCounter />
           {sidebarExtra}
         </aside>
       </div>

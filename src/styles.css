@@ -150,3 +150,13 @@ body.printable-page { margin: 8px; padding: 0; border: 0; background: #fff; colo
   .print-toolbar { display: none; }
   .printable-document { width: 100%; }
 }
+.visit-counter { margin: 20px 0; text-align: center; }
+.visit-counter .counter-caption { margin: 0 0 6px; color: #64584c; font-size: .9em; }
+.visit-counter .odometer { display: inline-flex; gap: 5px; padding: 3px; border: 1px solid #777; background: #252525; box-shadow: inset 0 1px 3px #0009; }
+.visit-counter .odometer-group { display: inline-flex; gap: 1px; margin: 0; }
+.visit-counter .odometer-digit { display: inline-grid; place-items: center; box-sizing: border-box; width: 18px; height: 29px; margin: 0; border: 1px solid #4b4b4b; border-radius: 1px; background: linear-gradient(#454545 0%, #181818 46%, #080808 50%, #292929 54%, #111 100%); color: #fff; text-shadow: 0 1px 2px #000; box-shadow: inset 0 1px 1px #ffffff20; font: bold 23px/1 Arial, sans-serif; font-variant-numeric: tabular-nums; }
+.visit-counter .counter-status { margin: 0; font-size: .9em; }
+.inception-date { margin: 8px 0 0; font-size: .95em; }
+.visit-counter .inception-date { margin-top: 7px; }
+.printable-document > .inception-date { font-size: 8pt; }
+.admin-page > .inception-date { margin-top: 24px; color: #64584c; }

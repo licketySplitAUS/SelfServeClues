@@ -18,11 +18,13 @@
   },
   "dependencies": {
     "@netlify/blobs": "11.0.1",
+    "@netlify/database": "2.0.1",
     "cheerio": "1.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.16",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
