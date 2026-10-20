@@ -82,3 +82,5 @@ The public project’s build reads the Admin selection every time, including a l
 Record the pack’s timestamp and source commits, verify its hashes, clone a bundle without GitHub, open the emergency file without network access, and load the SQL staging export into a disposable database. Separately restore to a fresh Netlify site with all writers disabled. Compare the current puzzle and historical figures before enabling traffic. Measure the actual time taken, then choose realistic recovery objectives. Repeat after storage-schema changes.
 
 The new automated restore tests use simulated stores rather than production. The SQL export does not prove the old database’s procedures or Delphi generator still run. The original-domain DNS cutover and independent host have not been activated by this change.
+
+See the [20 October recovery verification record](RECOVERY-DRILL.md) for the real backup, source-bundle, offline-solver and full SQL-export checks completed with this release.
