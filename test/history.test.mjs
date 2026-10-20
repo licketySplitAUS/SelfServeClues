@@ -40,7 +40,7 @@ test('upstream parser requires identity, real date and 25 tiles', () => {
   assert.throws(() => parseGrid('<img src="/images/a.gif">'), /valid puzzle/);
 });
 
-function fixture() {
+function fixture(validate = null) {
   const first = { puzzle: 1, gameId: 1, date: '2026-10-17', letters: 'A'.repeat(25), totalWords: 1, totalScore: 4, words: [{ word: 'aaaa', score: 4 }] };
   const current = { ...first, puzzle: 2, gameId: 2, date: '2026-10-18' };
   const aggregate = emptyAggregate(); adjust(aggregate, first); adjust(aggregate, current);
@@ -54,7 +54,7 @@ function fixture() {
     write: async (key, value) => { assert.ok(!blobs.has(key)); blobs.set(key, structuredClone(value)); },
   };
   const worker = makeService({ repo, baseline, archivedGame: async puzzle => structuredClone([first, current].find(game => game.puzzle === puzzle) || null),
-    clock: () => now, fetchImpl: async () => { fetches++; return new Response(html); } });
+    validate, clock: () => now, fetchImpl: async () => { fetches++; return new Response(html); } });
   const upstream = (puzzle = 3, date = '10/19/2026') => { html = `<a href="/${puzzle}/${date}#chat_log">chat</a>` + '<img src="/images/a.gif">'.repeat(25); };
   return { worker, baseline, repo, upstream, blobs, get control() { return control; }, advance: () => { now = new Date(+now + 300000); }, fetches: () => fetches };
 }
@@ -163,7 +163,7 @@ test('flip schedule follows US Central midnight across summer, winter and DST tr
 test('scheduled checks stop fetching once the Central-date puzzle is published', async () => {
   const { runScheduled } = await import('../netlify/lib/history/schedule.mjs');
   let checks = 0;
-  const createService = async () => ({ current: async () => ({ current: { date: '2026-07-01', puzzle: 42 } }), check: async () => { checks++; } });
+  const createService = async () => ({ current: async () => ({ current: { date: '2026-07-01', puzzle: 42, validation: { status: 'matched' } } }), check: async () => { checks++; } });
   assert.deepEqual(await runScheduled({ now: new Date('2026-07-01T05:10:00Z'), createService }), { outcome: 'already-current', puzzle: 42 });
   assert.equal(checks, 0);
 });
@@ -217,4 +217,34 @@ test('published puzzle notifications include game ID and word-size statistics', 
  await sendFlipNotice('published',details,{repo:{claimNotification:async()=>true},webhook:'https://example.invalid/solving',fetchImpl:async(url,options)=>{sent=JSON.parse(options.body);return new Response(null,{status:204});}});
  const fields=sent.embeds[0].fields;assert.equal(fields.find(row=>row.name==='Game ID').value,'7425');assert.equal(fields.find(row=>row.name==='Puzzle date').value,'2026-10-20');
  assert.match(fields.find(row=>row.name==='Word counts by size').value,/4 letters: 80 words.*400 pts/);assert.match(fields.find(row=>row.name==='Word counts by size').value,/5 letters: 40 words.*1000 pts/);
+});
+
+
+test('automatic dictionary rejections rebuild totals, persist future exclusions, and do not add history twice', async () => {
+  let calls = 0;
+  const f = fixture(async (grid, words) => {
+    calls++;
+    const rejected = words.some(row => row.word === 'aaaaa') ? ['aaaaa'] : [];
+    return { status: rejected.length ? 'corrected' : 'matched', rejected, checkedAt: '2026-10-19T12:00:00Z', tested: rejected.length, message: 'Verified' };
+  });
+  f.upstream(); await f.worker.check({ accept: true });
+  const first = await f.worker.current();
+  assert.equal(first.current.totalWords, 1); assert.equal(first.current.totalScore, 4);
+  assert.equal(first.corrections.aaaaa.action, 'exclude'); assert.equal(first.corrections.aaaaa.source, 'babble-validation');
+  assert.deepEqual(first.current.validation.excluded, ['aaaaa']);
+  assert.equal((await f.worker.check()).outcome, 'unchanged'); assert.equal(calls, 1);
+  await f.worker.check({ rebuild: true });
+  assert.equal((await f.worker.current()).current.totalWords, 1);
+  assert.equal((await f.worker.current()).current.validation.status, 'corrected');
+  assert.equal((await f.worker.current()).history.gameCount, 2);
+});
+
+test('unavailable validation retries the same published puzzle instead of silently skipping it', async () => {
+  let calls = 0;
+  const f = fixture(async () => ({ status: ++calls === 1 ? 'unavailable' : 'matched', rejected: [], message: 'Checked', tested: 0 }));
+  f.upstream(); await f.worker.check({ accept: true });
+  assert.equal((await f.worker.current()).current.validation.status, 'unavailable');
+  await f.worker.check();
+  assert.equal((await f.worker.current()).current.validation.status, 'matched');
+  assert.equal((await f.worker.current()).history.gameCount, 2);
 });

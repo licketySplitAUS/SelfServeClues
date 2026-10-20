@@ -195,7 +195,7 @@ search. Individual-tile counts must be combined for repeated starting letters.
 Review fills a word correction without applying it. Once confirmed on Babble,
 exclude/include the word with a reason; current clues/statistics rebuild and
 future puzzles retain that dictionary decision. Comparisons are local browser
-notes keyed by puzzle; no PlayBabble credentials are requested or stored.
+notes keyed by puzzle. Server-side validation now uses the Netlify secrets described below.
 A totals difference cannot safely identify which word is rejected, so words
 are never automatically removed by guessing. The complete-list reconciliation
 experiment was removed after clarification of Mark's workflow.
@@ -251,11 +251,15 @@ preview store prevent repeat messages. Failed delivery releases the receipt
 for a later scheduled attempt and does not block puzzle publication. The end-of-window
 summary only reads saved state; it does not extend the upstream check window.
 
-No logged-in PlayBabble statistics are available to the server. Word-count
-discrepancies therefore do not block the solved clues, and Discord does not
-claim the totals are officially verified. Corrections remain available in
-admin. An authenticated Send Discord flip test button verifies delivery
-without changing puzzle data. No full solution words or secrets are sent.
+Logged-in validation uses server-only BABBLE_USERNAME and BABBLE_PASSWORD secrets (Functions scope). After solving, it compares the official fixed word-size totals and aggregated starting-letter tile totals. It uses available two-letter totals and groups candidate submissions by two-letter prefix. The current Babble account exposes size and tile totals, with no separate two-letter totals. Accepted submissions change progress/remaining counters; the fixed denominators are compared instead. Equal counts confirm count agreement, not individual membership of every word.
+
+On a discrepancy, candidates matching excess sizes/starting letters are tested first. Only an explicit not_valid dictionary rejection creates a permanent exclude override. Board-path rejection (dne), login errors, timeouts and unexpected responses never blacklist words. The solver rebuilds clues, scores and historical caches after exclusions. Accepted-word progress is retained for retries, and validated results stop further submissions. Missing words and unexplained discrepancies are reported rather than guessed.
+
+The schedule hands off to authenticated history-process background work to avoid the scheduler's 30-second limit. Investigations resume on the normal retry schedule for the one-hour flip window. An unresolved result is clearly marked in Discord/admin; connection failures can require intervention if they persist through the window. Discord sends one notice per puzzle/validation outcome and lists rejected words with spoiler formatting. Failed Discord delivery can retry. The authenticated current-report button can resend a newly available outcome.
+
+NotifyBabblersOfClues defaults to false and was created with that value in Netlify. Set it to true in Functions scope and redeploy when ready. Only a validated puzzle triggers the exact public chat message "Clues are up!". A per-puzzle receipt prevents duplicates. Login failures retry; an ambiguous send retains the receipt to avoid repeating a possibly delivered message. No public chat was sent during validation testing.
+
+Runtime storage selection uses Netlify's request context.deploy.context; system CONTEXT is absent in these modern function invocations. Production uses the site-wide babble-history-preview-v1 store; draft deploys retain isolated stores. The original production deploy's records and notification receipts were copied to the persistent store, with a local ignored backup. The authenticated migrate-legacy action only operates on an empty production store and never overwrites existing published state.
 
 
 The Powered by Netlify badge was disabled through the project's

@@ -27,3 +27,16 @@
 .admin-page .diagnostics input[type=number] { box-sizing: border-box; width: 75px; }
 .admin-page .difference { background: #fff0c2; font-weight: bold; }
 @media (max-width: 500px) { .admin-page .diagnostics th, .admin-page .diagnostics td { padding: 4px 2px; font-size: .9em; } .admin-page .diagnostics input[type=number] { width: 58px; } }
+.clues-loading { box-sizing: border-box; width: min(92vw, 580px); margin: clamp(30px, 12vh, 130px) auto; padding: 54px 24px; background: #fffdf5; border: 1px solid #c4af77; border-radius: 20px; box-shadow: 0 18px 50px #71531822; text-align: center; animation: clues-arrive .5s ease-out; }
+.clues-loading h1 { color: #28728b; font: bold 30px 'Trebuchet MS', sans-serif; margin: 24px 0 12px; }
+.clues-loading p { font-size: 16px; }
+.loading-tiles { display: flex; justify-content: center; gap: 8px; perspective: 400px; }
+.loading-tiles span { display: grid; place-items: center; width: 50px; height: 56px; border: 1px solid #c7a628; border-radius: 6px; background: linear-gradient(145deg, #ffe989, #ffce00); box-shadow: 0 4px 0 #b79122; color: #382c13; font: bold 30px Georgia, serif; animation: clue-flip 2s ease-in-out infinite; }
+.loading-track { height: 4px; width: 160px; margin: 24px auto 16px; background: #dcebf0; overflow: hidden; border-radius: 4px; }
+.loading-track span { display: block; width: 45%; height: 100%; background: #448ba0; animation: clue-progress 1.6s ease-in-out infinite; }
+.clues-loading .loading-caption { color: #71654b; font-size: 13px; font-style: italic; }
+.clues-loading button { padding: 8px 20px; background: #fc0; border: 1px solid #9a7c13; border-radius: 5px; cursor: pointer; }
+@keyframes clue-flip { 0%, 65%, 100% { transform: translateY(0) rotateY(0); } 25% { transform: translateY(-9px) rotateY(18deg); } }
+@keyframes clue-progress { from { transform: translateX(-110%); } to { transform: translateX(330%); } }
+@keyframes clues-arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .clues-loading, .loading-tiles span, .loading-track span { animation: none; } }

@@ -14,7 +14,11 @@ export default function HistoryApp() {
     } catch (problem) { setError(problem instanceof Error ? problem.message : 'Could not load saved clues.'); }
   }
   useEffect(() => { void load(); }, []);
-  if (!snapshot) return <main className="page"><p role="status">{error || 'Loading clues…'}</p></main>;
+  if (!snapshot) return <main className="clues-loading" aria-busy={!error}>
+    <div className="loading-tiles" aria-hidden="true">{'CLUES'.split('').map((letter, index) => <span key={index} style={{ animationDelay: `${index * 120}ms` }}>{letter}</span>)}</div>
+    <h1>Lickety’s clues</h1><p role={error ? 'alert' : 'status'}>{error || 'Getting your clues ready…'}</p>
+    {error ? <button onClick={() => { setError(''); void load(); }}>Try again</button> : <><div className="loading-track" aria-hidden="true"><span /></div><p className="loading-caption">A little wordplay is on its way</p></>}
+  </main>;
   return <SelfServe publishedPuzzle={snapshot.current} dictionaryCount={snapshot.history.dictionaryCount} onRefresh={load}
     statistics={<Statistics snapshot={snapshot} stats={snapshot.history} />}
     sidebarExtra={error && <p role="alert">{error}</p>} />;

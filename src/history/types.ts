@@ -1,5 +1,6 @@
 export type Word = { word: string; score: number; startRow?: number; startCol?: number; length?: number; count?: number };
-export type Game = { puzzle: number; gameId: number; date: string; letters: string; totalWords: number; totalScore: number; words?: Word[]; solveMs?: number; dictionaryVersion?: string };
+export type Validation = { status: string; checkedAt: string; message: string; rejected: string[]; excluded?: string[]; tested: number; differences?: { total: number; lengths: Record<string, number>; starts: Record<string, number>; prefixes: Record<string, number> } };
+export type Game = { puzzle: number; gameId: number; date: string; letters: string; totalWords: number; totalScore: number; words?: Word[]; solveMs?: number; dictionaryVersion?: string; validation?: Validation | null };
 export type Stats = {
   gameCount: number; uniqueWords: number; averageWords: number; legacyAverageWords: number;
   largest: Game | null; smallest: Game | null; recent: Game[];

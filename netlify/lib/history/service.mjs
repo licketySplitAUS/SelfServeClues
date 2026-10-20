@@ -3,7 +3,7 @@ import { adjust, meta, snapshotFor } from './stats.mjs';
 import { parseGrid, sameGrid, solveGrid, validIdentity } from './solver.mjs';
 
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16);
-export function makeService({ repo, baseline, archivedGame, fetchImpl = fetch, clock = () => new Date() }) {
+export function makeService({ repo, baseline, archivedGame, fetchImpl = fetch, clock = () => new Date(), validate = null }) {
   const activeDictionary = corrections => {
     const list = new Set(baseline.dictionary);
     for (const [word, entry] of Object.entries(corrections)) {
@@ -49,13 +49,13 @@ export function makeService({ repo, baseline, archivedGame, fetchImpl = fetch, c
       await repo.commit({ ...control, lastCheck: now, message: error.message }, saved.etag);
       return { outcome: 'waiting', message: error.message };
     }
-    if (sameGrid(active, grid) && !correction && !rebuild && !manualGrid) {
+    if (sameGrid(active, grid) && !correction && !rebuild && !manualGrid && (!validate || ['matched', 'corrected'].includes(control.validationStatus))) {
       await repo.commit({ ...control, candidate: null, lastCheck: now, message: 'Upstream still serves the published puzzle; no history was added.' }, saved.etag);
       return { outcome: 'unchanged', puzzle: active.puzzle };
     }
     // A new identity is observed twice in separate invocations. An authenticated
     // operator may accept the freshly fetched candidate immediately.
-    if (!accept && !manualGrid && !correction && !rebuild &&
+    if (!sameGrid(active, grid) && !accept && !manualGrid && !correction && !rebuild &&
         (!sameGrid(control.candidate, grid) || +clock() - Date.parse(control.candidate.observedAt) < 20000)) {
       const candidate = { ...grid, observedAt: now };
       await repo.commit({ ...control, candidate, lastCheck: now, message: 'New/changed grid detected; waiting for a second observation or admin approval.' }, saved.etag);
@@ -68,12 +68,26 @@ export function makeService({ repo, baseline, archivedGame, fetchImpl = fetch, c
       if (correction.action === 'restore') delete state.corrections[word];
       else state.corrections[word] = { action: correction.action, reason: correction.reason.trim().slice(0, 300), changedAt: now };
     }
-    const dictionary = activeDictionary(state.corrections);
+    let dictionary = activeDictionary(state.corrections);
     const started = performance.now();
-    const words = solveGrid(grid.letters, dictionary);
+    let words = solveGrid(grid.letters, dictionary);
     const solveMs = Math.round(performance.now() - started);
     if (!words.length) throw new Error('The solver produced no words. No new result was published.');
-    const game = { ...grid, gameId: grid.puzzle, totalWords: words.length, totalScore: words.reduce((n, word) => n + word.score, 0), words,
+    const prior = state.puzzles[grid.puzzle];
+    const validation = validate ? await validate(grid, words, sameGrid(prior, grid) ? prior.validation : null) : null;
+    for (const word of validation?.rejected || []) {
+      if (!words.some(row => row.word === word)) throw new Error('Validation returned an unknown word.');
+      state.corrections[word] = { action: 'exclude', reason: `PlayBabble explicitly rejected dictionary membership in puzzle #${grid.puzzle}.`, changedAt: now, source: 'babble-validation' };
+    }
+    if (validation?.rejected?.length) {
+      dictionary = activeDictionary(state.corrections);
+      words = solveGrid(grid.letters, dictionary);
+    }
+    if (validation) {
+      validation.excluded = Object.entries(state.corrections).filter(([, entry]) => entry.source === 'babble-validation' && entry.reason.includes(`#${grid.puzzle}.`)).map(([word]) => word);
+      if (validation.status === 'matched' && validation.excluded.length) validation.status = 'corrected';
+    }
+    const game = { ...grid, validation, gameId: grid.puzzle, totalWords: words.length, totalScore: words.reduce((n, word) => n + word.score, 0), words,
       dictionaryVersion: hash(dictionary), solvedAt: now, solveMs, reason: manualGrid?.reason?.trim().slice(0, 300) || correction?.reason?.trim().slice(0, 300) || (rebuild ? 'Admin re-solve' : 'Upstream observation') };
     const old = state.puzzles[grid.puzzle] || await archivedGame(grid.puzzle);
     state.puzzles[grid.puzzle] = game;
@@ -102,7 +116,7 @@ export function makeService({ repo, baseline, archivedGame, fetchImpl = fetch, c
     const stateKey = `generations/${generation}/state`, snapshotKey = `generations/${generation}/snapshot`;
     await repo.write(gameKey, game); await repo.write(stateKey, state); await repo.write(snapshotKey, snapshot);
     const previous = control.snapshotKey ? { stateKey: control.stateKey, snapshotKey: control.snapshotKey, active: control.active, generation: control.generation } : null;
-    await repo.commit({ stateKey, snapshotKey, active: grid, generation, previous, lastCheck: now, candidate: null, message: `Preview puzzle ${grid.puzzle} published: ${words.length} words, ${solveMs} ms solve.` }, saved.etag);
+    await repo.commit({ stateKey, snapshotKey, active: grid, validationStatus: validation?.status || null, generation, previous, lastCheck: now, candidate: null, message: `Preview puzzle ${grid.puzzle} published: ${words.length} words, ${solveMs} ms solve.` }, saved.etag);
     return { outcome: 'published', puzzle: grid.puzzle, words: words.length, solveMs, comparison: snapshot.comparison };
   }
   async function rollback() {

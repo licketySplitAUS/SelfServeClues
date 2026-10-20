@@ -15,17 +15,28 @@ export function scheduleStartMinute(value = process.env.HISTORY_PREVIEW_START_MI
 }
 
 export const puzzleNoticeDetails = snapshot => ({ date: snapshot.current.date, puzzle: snapshot.current.puzzle, gameId: snapshot.current.gameId,
-  words: snapshot.current.totalWords, score: snapshot.current.totalScore, wordCounts: snapshot.today?.counts || {} });
+  words: snapshot.current.totalWords, score: snapshot.current.totalScore, wordCounts: snapshot.today?.counts || {}, validation: snapshot.current.validation });
+
+export function scheduledAction(now, startMinute = scheduleStartMinute()) {
+  const local = centralTime(now);
+  const elapsed = local.hour * 60 + local.minute - scheduleStartMinute(startMinute);
+  if (elapsed === 60) return 'deadline';
+  return elapsed >= 0 && elapsed < 60 && (elapsed < 10 || (elapsed < 30 ? elapsed % 5 === 0 : elapsed % 10 === 0)) ? 'check' : null;
+}
 
 export async function runScheduled({ now = new Date(), createService, notify = async () => {}, startMinute = scheduleStartMinute() }) {
   const local = centralTime(now);
-  const elapsed = local.hour * 60 + local.minute - scheduleStartMinute(startMinute);
-  const allowed = elapsed >= 0 && elapsed < 60 && (elapsed < 10 || (elapsed < 30 ? elapsed % 5 === 0 : elapsed % 10 === 0));
-  if (!allowed) return { outcome: 'outside-window' };
+  if (scheduledAction(now, startMinute) !== 'check') return { outcome: 'outside-window' };
   const worker = await createService();
   const snapshot = await worker.current();
+  if (snapshot.current.date === local.date && worker.check && !['matched', 'corrected'].includes(snapshot.current.validation?.status)) {
+    await worker.check();
+    const updated = await worker.current();
+    await notify('published', puzzleNoticeDetails(updated));
+    return { outcome: 'validation-retry', puzzle: updated.current.puzzle };
+  }
   // Once today's puzzle is published there is no need to fetch upstream again.
-  // Future manual grids are also respected. Word corrections remain an admin action.
+  // Future manual grids are also respected; unsuccessful validation retries.
   if (snapshot.current.date >= local.date) {
     if (snapshot.current.date === local.date) await notify('published', puzzleNoticeDetails(snapshot));
     return { outcome: 'already-current', puzzle: snapshot.current.puzzle };

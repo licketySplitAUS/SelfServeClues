@@ -26,6 +26,7 @@ export default function Admin({ onSnapshot, snapshot }: { onSnapshot: (snapshot:
     <label>Preview admin key<input type="password" autoComplete="off" value={key} onChange={event => setKey(event.target.value)} /></label>
     <fieldset disabled={busy || !key}>
       <button onClick={() => void run({ action: 'notify-test' })}>Send Discord flip test</button>
+      <button onClick={() => void run({ action: 'notify-current' })}>Send current validation report to Discord</button>
       <div className="actions"><button onClick={() => void run({ action: 'check' })}>Check PlayBabble now</button><button onClick={() => void run({ action: 'check', accept: true })}>Check and accept current upstream grid</button><button onClick={() => void run({ action: 'rebuild' })}>Re-solve published preview grid</button></div>
       {snapshot && <Diagnostics key={snapshot.current.puzzle} snapshot={snapshot} onSelect={value => { setWord(value); setWordAction('exclude'); document.getElementById('correction-word')?.focus(); }} />}
       <h4>Word correction</h4>

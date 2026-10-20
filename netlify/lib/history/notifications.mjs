@@ -1,8 +1,29 @@
 import { blobRepository } from './repository.mjs';
+import { babbleClient, env } from './babble.mjs';
+import { parseGrid } from './solver.mjs';
 
 export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl = fetch }) {
+  let chatOutcome = env('NotifyBabblersOfClues') === 'true' ? 'waiting-for-validation' : 'disabled';
+  if (event === 'published' && env('NotifyBabblersOfClues') === 'true' && ['matched', 'corrected'].includes(details.validation?.status)) {
+    const chatKey = `${details.date}/babble-chat-${details.puzzle}`;
+    if (await repo.claimNotification(chatKey)) {
+      let submitting = false;
+      try {
+        const client = babbleClient({ fetchImpl });
+        const grid = parseGrid(await client.login());
+        if (grid.puzzle !== details.puzzle || grid.date !== details.date) throw new Error('Puzzle changed.');
+        submitting = true;
+        await client.chat(details.puzzle); chatOutcome = 'sent';
+      } catch {
+        chatOutcome = 'unconfirmed';
+        if (!submitting) await repo.releaseNotification(chatKey);
+        // Keep the claim after an ambiguous public send to avoid duplicates.
+      }
+    } else chatOutcome = 'already-sent';
+  }
   if (!webhook) return { outcome: 'not-configured' };
-  const key = `${details.date}/${event}${event === 'test' ? `-${Date.now()}` : ''}`;
+  const excluded = details.validation?.excluded || details.validation?.rejected || [];
+  const key = `${details.date}/${event}${event === 'published' ? `-${details.puzzle}-${details.validation?.status || 'unchecked'}-${excluded.join('-')}` : ''}${event === 'test' ? `-${Date.now()}` : ''}`;
   let claimed = false;
   const messages = {
     watching: ['Babble preview: watching for the flip', `Checking for ${details.date} starting at 00:${String(details.startMinute || 0).padStart(2, '0')} US Central. Retries taper from 1 to 5 to 10 minutes and stop after one hour.`],
@@ -21,6 +42,13 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
   const sizes = Object.entries(details.wordCounts || {}).sort(([a], [b]) => Number(a) - Number(b))
     .map(([length, row]) => `${length} letters: ${row.count} words · ${row.score} pts`).join('\n');
   if (sizes) fields.push({ name: 'Word counts by size', value: sizes.slice(0, 1024) });
+  if (event === 'published') {
+    const validation = details.validation;
+    fields.push({ name: 'PlayBabble validation', value: validation ? `${['matched', 'corrected'].includes(validation.status) ? '✓' : '⚠'} ${validation.message}`.slice(0, 1024) : 'Not yet checked against a logged-in Babble session.' });
+    if (excluded.length) fields.push({ name: 'Bad words found and excluded', value: excluded.map(word => `||${word}||`).join(', ').slice(0, 1024) });
+    if (validation?.differences && validation.status === 'mismatch') fields.push({ name: 'Discrepancy (our clues minus Babble)', value: JSON.stringify(validation.differences).slice(0, 1024) });
+    fields.push({ name: 'Babble chat', value: chatOutcome === 'disabled' ? 'Announcement disabled.' : chatOutcome });
+  }
   fields.push({ name: 'Administration', value: '[Open admin & exceptions](https://selfserve.r46.me/history-admin.html)' });
   try {
     if (!await repo.claimNotification(key)) return { outcome: 'already-sent' };
@@ -42,6 +70,6 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
   }
 }
 
-export const notifyFlip = (event, details) => sendFlipNotice(event, details, {
-  repo: blobRepository(), webhook: process.env.DISCORD_PUZZLE_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL,
+export const notifyFlip = (event, details, context) => sendFlipNotice(event, details, {
+  repo: blobRepository(context), webhook: env('DISCORD_PUZZLE_WEBHOOK_URL') || env('DISCORD_WEBHOOK_URL'),
 });
