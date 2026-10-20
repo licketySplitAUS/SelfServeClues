@@ -17,11 +17,18 @@ Source branch is `main` for both. Build settings in each repository’s `netlify
 |---|---|---|
 | `HISTORY_PREVIEW_SCHEDULE_ENABLED` | `true` on the current service | Enable the daily flip dispatcher |
 | `HISTORY_PREVIEW_START_MINUTE` | `17` | Start at 00:17 US Central, not Sydney midnight |
-| `NotifyBabblersOfClues` | `false` | Exact-case variable; chat only if literal `true` and validation succeeds |
+| Admin → Babble chat announcement | Off at rollout | Saved setting; changes apply on subsequent checks without a redeploy |
+| `NotifyBabblersOfClues` | `false` | Legacy initial fallback only, until the first Admin chat setting is saved |
 | Admin publication selection | Legacy/off at this audit | Saved Blob selection, distinct from the chat flag |
 | Node build version | `22` | Set by `netlify.toml`; local tools require 22.13+ |
 
-For recovery, start with scheduler and chat disabled. Re-enable only after data, domains and today’s result have been checked. Functions read environment values attached to the deployment; deploy again after changing runtime settings. See Netlify’s [environment variable documentation](https://docs.netlify.com/build/environment-variables/overview/).
+For recovery, keep the scheduler disabled and switch chat off in Admin after restoring data. A restored Admin chat setting overrides the legacy environment variable. Re-enable only after data, domains and today’s result have been checked. Environment-variable changes still require a new deploy; the saved Admin chat switch does not. See Netlify’s [environment variable documentation](https://docs.netlify.com/build/environment-variables/overview/).
+
+## Enable Babble chat announcements
+
+Enter the Admin key, then use **Babble chat announcement → Announce validated clues in Babble chat**. Saving takes effect on subsequent notification checks without a deploy and does not itself post anything. The daily processor can then post **“Clues are up!”** after successful validation. The existing **Send current validation report to Discord** action also checks enabled chat announcements, so it can announce today's validated puzzle when used deliberately. A per-puzzle receipt prevents another announcement for that puzzle.
+
+This setting is separate from the public-page launch switch. It is saved as `settings/chat-announcements` in the history store and included in the full runtime backup. If its storage cannot be read, the notification processor disables chat for that invocation while allowing the Discord report to proceed. Keep the switch off until ready for public announcements. Before the first Admin save, the old `NotifyBabblersOfClues` value supplies the initial setting; afterward the saved Admin value wins.
 
 ## Daily operation
 

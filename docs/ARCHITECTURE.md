@@ -127,7 +127,7 @@ flowchart LR
 
 | Store / source | Objects | Why it matters |
 |---|---|---|
-| `babble-history-preview-v1` | `control`; `generations/{id}/state` and `/snapshot`; `puzzles/{number}/{id}`; `notifications/...` | New puzzle history, correction decisions, rollback and notification/chat receipts |
+| `babble-history-preview-v1` | `control`; `generations/{id}/state` and `/snapshot`; `puzzles/{number}/{id}`; `notifications/...`; `settings/chat-announcements` | New puzzle history, correction decisions, rollback, notification/chat receipts and Admin chat setting |
 | `babble-shared-data` | `current-grid`, optional raw-text `words.txt` | Self Serve’s last fetched board and optional replacement dictionary |
 | `babble-publication` | Optional `mode` | Admin’s selected old/new public route and deployment operation status; no object means legacy/off |
 | `babble-page-views` | `receipts/{uuid}`, `visits/{UTC-day}/{uuid}`, `checkpoints/{UTC-day}` | Shared visit ledger across refreshed clue pages |
@@ -167,6 +167,7 @@ The original comparison showed 7,421 historical rows versus 7,266 canonical hist
 | `history-process`: background | Authorized recent dispatch; solve/validate/notify; longer candidate investigation fits here |
 | `/history-api/admin`: authorized POST | Check, accept, rebuild, correction, manual grid, rollback, partial legacy backup, explicit notification tests |
 | `/history-api/publication`: GET / authorized POST | Read selection/live marker; save desired mode and invoke legacy build hook |
+| `/history-api/chat-settings`: GET / authorized production POST | Read/change the saved chat announcement switch without deploying or posting a message |
 | `/api/page-counter`: GET / UUID POST | Read shared count / record document visit |
 | `page-counter-checkpoint`: `0 4 * * *` UTC | Seal older visit days into immutable derived checkpoint |
 | `/history-api/recovery`: authorized GET | Inventory or read a saved object; SQL staging and emergency HTML downloads |
@@ -199,7 +200,7 @@ sequenceDiagram
 
 The **saved Admin selection** is the source of truth. Although an environment-variable switch was discussed initially, the implementation does not require editing a Netlify boolean or storing a Netlify account token in a function. The build derives `USE_NEW_BABBLE_CLUES` internally from the saved selection. A secret, narrowly scoped build-hook URL starts the deploy. The page continues to serve its previous deploy while building.
 
-`/new-babbleclues` always previews the new page on the original domain; `/legacy-babbleclues` preserves the generated legacy page. The public switch is separate from `NotifyBabblersOfClues`, which controls the chat announcement. A switch-back also requires the old generator to supply a current puzzle if it has been stopped.
+`/new-babbleclues` always previews the new page on the original domain; `/legacy-babbleclues` preserves the generated legacy page. The public switch is separate from Admin's Babble chat announcement switch. The chat setting is saved in the history store and read for each notification invocation; it overrides the old `NotifyBabblersOfClues` environment fallback after its first Admin save. Changes need no deploy and do not post immediately. A switch-back also requires the old generator to supply a current puzzle if it has been stopped.
 
 ## 8. Boundaries and failure behaviour
 

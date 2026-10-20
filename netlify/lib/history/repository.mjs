@@ -9,6 +9,14 @@ export function blobRepository(context) {
   const production = (context?.deploy?.context || env('CONTEXT')) === 'production';
   const store = production ? getStore(options) : getDeployStore(options);
   return {
+    async chatSettings() {
+      const record = await store.getWithMetadata('settings/chat-announcements', { type: 'json' });
+      return { value: record?.data || null, etag: record?.etag || null };
+    },
+    async commitChatSettings(value, etag) {
+      const result = await store.setJSON('settings/chat-announcements', value, etag ? { onlyIfMatch: etag } : { onlyIfNew: true });
+      if (!result.modified) throw new Error('Another chat setting change was saved first. Reload the setting and try again.');
+    },
     async migrateFromDeploy(deployID) {
       if (!production || !/^[a-f0-9]{24}$/.test(deployID)) throw new Error('Migration requires a production deployment and a valid source deploy ID.');
       if (await store.get('control')) throw new Error('The production store already has data; migration cannot overwrite it.');

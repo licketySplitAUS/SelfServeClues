@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Diagnostics from './Diagnostics';
 import PublicationControl from './PublicationControl';
+import ChatAnnouncementControl from './ChatAnnouncementControl';
 import RecoveryPanel from './RecoveryPanel';
 import type { Snapshot } from './types';
 export default function Admin({ onSnapshot, snapshot }: { onSnapshot: (snapshot: Snapshot) => void; snapshot?: Snapshot }) {
@@ -27,6 +28,7 @@ export default function Admin({ onSnapshot, snapshot }: { onSnapshot: (snapshot:
     <p>The publication switch controls the public r46.me clues page. Puzzle administration below manages the saved clues and history. The key stays in this page’s memory.</p>
     <label>Preview admin key<input type="password" autoComplete="off" value={key} onChange={event => setKey(event.target.value)} /></label>
     <PublicationControl adminKey={key} />
+    <ChatAnnouncementControl adminKey={key} />
     <RecoveryPanel adminKey={key} />
     <fieldset disabled={busy || !key}>
       <button onClick={() => void run({ action: 'notify-test' })}>Send Discord flip test</button>

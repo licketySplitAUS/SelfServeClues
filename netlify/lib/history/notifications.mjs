@@ -1,10 +1,11 @@
 import { blobRepository } from './repository.mjs';
 import { babbleClient, env } from './babble.mjs';
 import { parseGrid } from './solver.mjs';
+import { chatSettings } from './chat-settings.mjs';
 
-export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl = fetch }) {
-  let chatOutcome = env('NotifyBabblersOfClues') === 'true' ? 'waiting-for-validation' : 'disabled';
-  if (event === 'published' && env('NotifyBabblersOfClues') === 'true' && ['matched', 'corrected'].includes(details.validation?.status)) {
+export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl = fetch, chatEnabled = env('NotifyBabblersOfClues') === 'true' }) {
+  let chatOutcome = chatEnabled ? 'waiting-for-validation' : 'disabled';
+  if (event === 'published' && chatEnabled && ['matched', 'corrected'].includes(details.validation?.status)) {
     const chatKey = `${details.date}/babble-chat-${details.puzzle}`;
     if (await repo.claimNotification(chatKey)) {
       let submitting = false;
@@ -70,6 +71,12 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
   }
 }
 
-export const notifyFlip = (event, details, context) => sendFlipNotice(event, details, {
+export async function sendConfiguredFlipNotice(event, details, options) {
+  let chatEnabled = false;
+  try { chatEnabled = (await chatSettings(options.repo)).enabled; }
+  catch { console.error('Chat setting unavailable; public announcements are disabled for this invocation.'); }
+  return sendFlipNotice(event, details, { ...options, chatEnabled });
+}
+export const notifyFlip = (event, details, context) => sendConfiguredFlipNotice(event, details, {
   repo: blobRepository(context), webhook: env('DISCORD_PUZZLE_WEBHOOK_URL') || env('DISCORD_WEBHOOK_URL'),
 });

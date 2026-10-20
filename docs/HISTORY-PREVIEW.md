@@ -257,7 +257,7 @@ On a discrepancy, candidates matching excess sizes/starting letters are tested f
 
 The schedule hands off to authenticated history-process background work to avoid the scheduler's 30-second limit. Investigations resume on the normal retry schedule for the one-hour flip window. An unresolved result is clearly marked in Discord/admin; connection failures can require intervention if they persist through the window. Discord sends one notice per puzzle/validation outcome and lists rejected words with spoiler formatting. Failed Discord delivery can retry. The authenticated current-report button can resend a newly available outcome.
 
-NotifyBabblersOfClues defaults to false and was created with that value in Netlify. Set it to true in Functions scope and redeploy when ready. Only a validated puzzle triggers the exact public chat message "Clues are up!". A per-puzzle receipt prevents duplicates. Login failures retry; an ambiguous send retains the receipt to avoid repeating a possibly delivered message. No public chat was sent during validation testing.
+Chat announcements are now controlled under **Admin → Babble chat announcement**, without a redeploy. The original `NotifyBabblersOfClues=false` environment variable supplies the initial fallback until an Admin chat setting has been saved; the saved Admin setting then takes precedence. Saving does not post immediately. Only a validated puzzle triggers the exact public chat message "Clues are up!" during a later announcement check. A per-puzzle receipt prevents duplicates. Login failures retry; an ambiguous send retains the receipt to avoid repeating a possibly delivered message. No public chat was sent during validation testing.
 
 Runtime storage selection uses Netlify's request context.deploy.context; system CONTEXT is absent in these modern function invocations. Production uses the site-wide babble-history-preview-v1 store; draft deploys retain isolated stores. The original production deploy's records and notification receipts were copied to the persistent store, with a local ignored backup. The authenticated migrate-legacy action only operates on an empty production store and never overwrites existing published state.
 
@@ -314,8 +314,8 @@ Unacknowledged hooks remain unverified until the matching operation is published
 failed or delayed requests can be retried. Failed builds preserve the prior site.
 
 Before launch, stop the old solver's Git publishing, then enable the Admin switch.
-The new solver's existing schedule continues unchanged. NotifyBabblersOfClues is
-independent and remains false until deliberately enabled. Turning the publication
+The new solver's existing schedule continues unchanged. The Admin chat switch is
+independent and remains off until deliberately enabled. Turning the publication
 switch off redeploys the preserved legacy page; restart the old solver if it should
 resume daily updates. New history and corrections remain intact after rollback.
 
