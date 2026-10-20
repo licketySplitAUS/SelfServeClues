@@ -457,7 +457,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   return (
     <main id="top" className="page">
       <header>
-        <h1>lickety&apos;s Self Serve Babble Clues</h1>
+        <h1>{publishedPuzzle ? "lickety's Babble Clues" : "lickety's Self Serve Babble Clues"}</h1>
         <p>
           Check boxes &amp; type-in boxes for the word if you think it&apos;s the one.{" "}
           {!publishedPuzzle && <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">Visit lickety&apos;s original clues</a>}{" "}
