@@ -325,7 +325,7 @@ Admin explicitly switches it on. Other r46.me pages and downloads remain availab
 
 ## First-party page counter
 
-Self Serve and the new clues page share one Postgres counter, seeded from the
+Self Serve and the new clues page share one visit ledger, seeded from the
 provided legacy screenshot at 4,197,761. The inception date is 18 April 2006,
 displayed as 18/04/06 in each clues sidebar and on printable/Admin pages.
 The odometer groups digits in threes with small visual gaps.
@@ -333,13 +333,9 @@ The odometer groups digits in threes with small visual gaps.
 Each loaded clues document makes one POST /api/page-counter after its sidebar
 mounts. Refreshing or opening either clues page creates a new random visit ID.
 React StrictMode remounts share one request; transport retries reuse the ID.
-One SQL statement inserts the retry receipt and increments the total atomically.
+Each random visit ID has its own immutable receipt and dated index, written only if new. The displayed total is derived from these unique records and sealed daily checkpoints. No shared counter key is overwritten.
 GET reads the total without incrementing. Admin and printable pages display the
 inception date without adding visits. No IP addresses, accounts, persistent
 browser identifiers or third-party counter requests are used.
 
-The @netlify/database deployment migration creates the tables and initial total.
-Production data survives deployments; Netlify manages isolated database branches
-for previews. The scheduled cleanup deletes random retry receipts older than
-30 days and never changes the accumulated total. An unavailable database shows
-an unavailable-counter message while the rest of the clues page keeps working.
+Netlify Database provisioning was rejected because this account does not have the database feature. The implementation uses the production site-wide babble-page-views Blob store as an append-only ledger; preview deploys use isolated deploy stores. There is no read-modify-write counter key. The daily scheduled checkpoint summarizes visits at least two UTC days old into a new immutable checkpoint. Original visit records and receipts remain available, and checkpoints keep normal reads limited to recent days. Data survives deployments. An unavailable store shows an unavailable-counter message while the rest of the clues page keeps working.
