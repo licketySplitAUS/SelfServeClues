@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { publicationStatus, setPublication, configureLaunch, runPublicationLaunch, launchPlan } from '../netlify/lib/publication.mjs';
 import handler from '../netlify/functions/history-publication.mjs';
+import { authorized } from '../netlify/lib/history/runtime.mjs';
 
 const fixture = () => {
   let data = null, version = 0;
@@ -119,4 +120,15 @@ test('manual changes cancel a pending launch and late scheduling fails closed', 
   assert.equal((await store.get()).launch.state, 'cancelled');
   await assert.rejects(configureLaunch('schedule-launch', { store: fixture(), hook, now: launchTime }), /already passed/);
   await assert.rejects(configureLaunch('schedule-launch', { store: fixture(), hook: '', now: beforeLaunch }), /not been configured/);
+});
+
+
+test('admin authentication uses the Netlify runtime environment with a local fallback', () => {
+  const prior = globalThis.Netlify;
+  try {
+    globalThis.Netlify = { env: { get: name => name === 'HISTORY_PREVIEW_ADMIN_KEY' ? 'runtime-test-key' : undefined } };
+    assert.equal(authorized(new Request('https://example.test', { headers: { 'x-admin-key': 'runtime-test-key' } })), true);
+    assert.equal(authorized(new Request('https://example.test', { headers: { 'x-admin-key': 'wrong' } })), false);
+    assert.equal(authorized(new Request('https://example.test'), ''), false);
+  } finally { globalThis.Netlify = prior; }
 });
