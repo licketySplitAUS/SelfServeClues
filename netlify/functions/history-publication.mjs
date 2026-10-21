@@ -1,7 +1,7 @@
 import { getStore, getDeployStore } from '@netlify/blobs';
 import { authorized } from '../lib/history/runtime.mjs';
 import { env } from '../lib/history/babble.mjs';
-import { publicationStatus, setPublication } from '../lib/publication.mjs';
+import { publicationStatus, setPublication, configureLaunch } from '../lib/publication.mjs';
 
 export default async (request, context) => {
   const headers = { 'cache-control': 'no-store' };
@@ -16,7 +16,9 @@ export default async (request, context) => {
     const text = await request.text();
     if (text.length > 256) throw new Error('Publication request is too large.');
     const body = JSON.parse(text);
-    return Response.json(await setPublication(body.enabled, { store, hook: env('BABBLE_PUBLICATION_BUILD_HOOK') }), { headers });
+    const publicationOptions = { store, hook: env('BABBLE_PUBLICATION_BUILD_HOOK') };
+    const result = body.action ? await configureLaunch(body.action, publicationOptions) : await setPublication(body.enabled, publicationOptions);
+    return Response.json(result, { headers });
   } catch (error) { return Response.json({ error: error.message }, { status: 400, headers }); }
 };
 export const config = { path: '/history-api/publication' };
