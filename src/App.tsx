@@ -614,10 +614,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
             <a className="paypal-donate" href="https://www.paypal.com/donate/?business=licketySplitAUS%40gmail.com&amp;item_name=Lickety%27s%20Babble%20Clues&amp;currency_code=AUD" target="_blank" rel="noopener noreferrer">Donate with PayPal</a>
             <a className="donation-email" href="mailto:licketySplitAUS@gmail.com">licketySplitAUS@gmail.com</a>
           </div>
-          <a href="/babble-expert.html" target="_blank" rel="noopener noreferrer">Babble Expert Information and Install Guides</a>
-          <h3>Download Babble Expert</h3>
-          <a href="https://github.com/licketySplitAUS/BabbleExpert/releases/latest/download/BabbleExpert-Windows-Setup.exe">Download for Windows</a>
-          <a href="https://github.com/licketySplitAUS/BabbleExpert/releases/latest/download/BabbleExpert-macOS.dmg">Download for Mac</a>
+          <div className="expert-button-wrap"><a className="babble-expert-button" href="/babble-expert.html" target="_blank" rel="noopener noreferrer"><span>Babble Expert</span></a></div>
           <h3>Handy Links</h3>
           <a href="https://www.playbabble.com/" target="_blank" rel="noreferrer">Babble</a>
           <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">lickety&apos;s Babble Clues</a>

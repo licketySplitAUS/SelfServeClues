@@ -1,0 +1,9 @@
+.expert-button-wrap{margin:0 0 24px;text-align:center}
+.expert-button-wrap a.babble-expert-button{position:relative;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;overflow:hidden;margin:0;padding:7px 16px;min-height:34px;border:1px solid #d8a600;border-radius:18px;background:#ffc439;color:#003087;font:bold 13px/1.35 Arial,sans-serif;text-decoration:none;vertical-align:middle;transition:background-color .2s ease,box-shadow .2s ease}
+.expert-button-wrap a.babble-expert-button>span{position:relative;z-index:1;display:inline;margin:0;color:inherit}
+.expert-button-wrap a.babble-expert-button::before{content:"";position:absolute;z-index:0;inset:-75% -12%;pointer-events:none;background:linear-gradient(115deg,transparent 20%,#ff7991 31%,#ffb35c 38%,#fff18a 44%,#7bdfab 50%,#7dcdf5 56%,#b79df1 63%,#ed9bdd 70%,transparent 80%);opacity:0;transform:translate3d(-140%,0,0);animation:babble-expert-rainbow-wave 10s ease-in-out infinite}
+.expert-button-wrap a.babble-expert-button:hover{background:#f5b929;box-shadow:0 2px 7px #926a0026}
+.expert-button-wrap a.babble-expert-button:focus-visible{outline:2px solid #003087;outline-offset:3px}
+@keyframes babble-expert-rainbow-wave{0%,70%{transform:translate3d(-140%,0,0);opacity:0}77%{opacity:.22}93%{opacity:.22}100%{transform:translate3d(140%,0,0);opacity:0}}
+@media(prefers-reduced-motion:reduce){.expert-button-wrap a.babble-expert-button{transition:none}.expert-button-wrap a.babble-expert-button::before{animation:none;opacity:0}}
+@media print{.expert-button-wrap a.babble-expert-button::before{display:none}}
