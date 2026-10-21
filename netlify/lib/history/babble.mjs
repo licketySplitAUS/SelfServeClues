@@ -1,5 +1,6 @@
 import { load } from 'cheerio';
 import { parseGrid, sameGrid } from './solver.mjs';
+import { chatMessage } from './chat-message.mjs';
 
 export const env = name => globalThis.Netlify?.env?.get(name) ?? process.env[name];
 const origin = 'https://www.playbabble.com';
@@ -50,8 +51,8 @@ export function babbleClient({ fetchImpl = fetch, username = env('BABBLE_USERNAM
       // "dne" means no board path; it is not evidence for a global dictionary ban.
       throw new Error(`Babble did not confirm dictionary membership (${String(data.error || 'unknown response').slice(0, 40)}).`);
     },
-    async chat(puzzle) {
-      await request('/action/add_chat_message', { message: 'Clues are up!', puzzleid: String(puzzle) });
+    async chat(puzzle, message) {
+      await request('/action/add_chat_message', { message: chatMessage(message), puzzleid: String(puzzle) });
     },
   };
 }

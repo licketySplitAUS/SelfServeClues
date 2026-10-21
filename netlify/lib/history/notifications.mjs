@@ -3,7 +3,7 @@ import { babbleClient, env } from './babble.mjs';
 import { parseGrid } from './solver.mjs';
 import { chatSettings } from './chat-settings.mjs';
 
-export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl = fetch, chatEnabled = env('NotifyBabblersOfClues') === 'true' }) {
+export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl = fetch, chatEnabled = env('NotifyBabblersOfClues') === 'true', announcementText }) {
   let chatOutcome = chatEnabled ? 'waiting-for-validation' : 'disabled';
   if (event === 'published' && chatEnabled && ['matched', 'corrected'].includes(details.validation?.status)) {
     const chatKey = `${details.date}/babble-chat-${details.puzzle}`;
@@ -14,7 +14,7 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
         const grid = parseGrid(await client.login());
         if (grid.puzzle !== details.puzzle || grid.date !== details.date) throw new Error('Puzzle changed.');
         submitting = true;
-        await client.chat(details.puzzle); chatOutcome = 'sent';
+        await client.chat(details.puzzle, announcementText); chatOutcome = 'sent';
       } catch {
         chatOutcome = 'unconfirmed';
         if (!submitting) await repo.releaseNotification(chatKey);
@@ -73,9 +73,10 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
 
 export async function sendConfiguredFlipNotice(event, details, options) {
   let chatEnabled = false;
-  try { chatEnabled = (await chatSettings(options.repo)).enabled; }
+  let announcementText;
+  try { const setting = await chatSettings(options.repo); chatEnabled = setting.enabled; announcementText = setting.announcementText; }
   catch { console.error('Chat setting unavailable; public announcements are disabled for this invocation.'); }
-  return sendFlipNotice(event, details, { ...options, chatEnabled });
+  return sendFlipNotice(event, details, { ...options, chatEnabled, announcementText });
 }
 export const notifyFlip = (event, details, context) => sendConfiguredFlipNotice(event, details, {
   repo: blobRepository(context), webhook: env('DISCORD_PUZZLE_WEBHOOK_URL') || env('DISCORD_WEBHOOK_URL'),
