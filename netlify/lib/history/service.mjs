@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { adjust, meta, snapshotFor, unseenFourLetterWords } from './stats.mjs';
 import { parseGrid, sameGrid, solveGrid, validIdentity } from './solver.mjs';
+import { analyzeUnseenWords } from './dice.mjs';
 
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16);
 export function makeService({ repo, baseline, archivedGame, fetchImpl = fetch, clock = () => new Date(), validate = null }) {
@@ -42,7 +43,8 @@ export function makeService({ repo, baseline, archivedGame, fetchImpl = fetch, c
     const state = await stateFor(value);
     const { aggregate, games } = await aggregateFor(state);
     const dates = games.map(game => game.date).filter(Boolean).sort();
-    return { ...unseenFourLetterWords(aggregate, activeDictionary(state.corrections)),
+    const unseen = unseenFourLetterWords(aggregate, activeDictionary(state.corrections));
+    return { ...unseen, diceAnalysis: analyzeUnseenWords(unseen.words),
       firstDate: dates[0] || null, lastDate: dates.at(-1) || null,
       currentPuzzle: state.current.puzzle, updatedAt: state.current.solvedAt || baseline.importedAt,
       sourceVersion: baseline.sourceVersion };

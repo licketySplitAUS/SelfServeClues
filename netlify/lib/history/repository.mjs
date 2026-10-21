@@ -16,6 +16,13 @@ export function blobRepository(context) {
     async commitChatSettings(value, etag) {
       const result = await store.setJSON('settings/chat-announcements', value, etag ? { onlyIfMatch: etag } : { onlyIfNew: true });
       if (!result.modified) throw new Error('Another chat setting change was saved first. Reload the setting and try again.');
+      return result.etag;
+    },
+    dailyChatSelection(date) {
+      return store.get(`settings/chat-selections/${date}`, { type: 'json' });
+    },
+    async commitDailyChatSelection(date, value) {
+      return (await store.setJSON(`settings/chat-selections/${date}`, value, { onlyIfNew: true })).modified;
     },
     async migrateFromDeploy(deployID) {
       if (!production || !/^[a-f0-9]{24}$/.test(deployID)) throw new Error('Migration requires a production deployment and a valid source deploy ID.');

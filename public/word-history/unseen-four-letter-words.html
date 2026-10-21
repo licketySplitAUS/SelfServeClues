@@ -11,7 +11,16 @@
   <h1>4-letter words not yet seen</h1>
   <p id="summary" role="status" aria-live="polite">Loading the recorded grid history…</p>
   <p id="coverage" class="muted"></p>
-  <div class="tools"><label for="word-filter">Find a word <input id="word-filter" type="search" maxlength="4" autocomplete="off" placeholder="Type up to 4 letters" disabled></label><button id="download" type="button" disabled>Download full list (.txt)</button></div>
+  <section class="rules" aria-labelledby="dice-heading">
+    <h2 id="dice-heading">Why might familiar words be missing?</h2>
+    <p>Boggle grids are made from letter dice, with only one face of each die showing. In a common 5×5 Big Boggle set, <strong>B, J, K, Qu, X and Z share a single die</strong>. That prevents combinations such as B + K in <strong>BIKE</strong>, or two Bs in <strong>BABY</strong>. This matches the rare-letter pattern found in our archived Babble grids, but we haven’t verified Babble’s generator.</p>
+    <ul><li>Each tile may be used only once in a word; letters must join horizontally, vertically or diagonally.</li><li>The reference set has only one die that supplies V, so words needing two Vs conflict with it.</li><li>A Qu tile supplies both letters together, so a bare Q word conflicts with that rule.</li></ul>
+    <p>We check whether each word’s letters can be supplied by distinct dice in that reference set. A word that passes still needs a suitable arrangement and dictionary acceptance. These are <strong>possible explanations, not confirmed Babble restrictions</strong>.</p>
+    <p class="references"><a href="https://web.stanford.edu/class/cs106x/res/handouts/15-Assignment-3-Boggle.pdf" target="_blank" rel="noopener noreferrer">Reference 5×5 dice (Stanford, page 2)</a> · <a href="https://winning-moves.com/images/bigboggle_rules.pdf" target="_blank" rel="noopener noreferrer">Big Boggle rules</a></p>
+  </section>
+  <p id="dice-summary" role="status" aria-live="polite"></p>
+  <p class="legend"><span class="dice-key">◆ Possible dice conflict</span> <span class="unexplained-key">? Not explained by these rules</span>. Each word shows its reason; the second group is especially worth investigating.</p>
+  <div class="tools"><label for="word-filter">Find a word <input id="word-filter" type="search" maxlength="4" autocomplete="off" placeholder="Type up to 4 letters" disabled></label><label for="rule-filter">Show words<select id="rule-filter" disabled><option value="all">All words</option><option value="blocked">Possible dice conflict</option><option value="unexplained">Not explained by these rules</option></select></label><button id="download" type="button" disabled>Download full list (.txt)</button></div>
   <p id="filter-status" role="status" aria-live="polite"></p>
   <ul id="words" aria-label="Four-letter words with no recorded appearance"></ul>
   <button id="retry" type="button" hidden>Try again</button>

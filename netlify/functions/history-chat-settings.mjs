@@ -11,9 +11,9 @@ export default async (request, context) => {
     const repo = blobRepository(context);
     if (request.method === 'GET') return Response.json(await chatSettings(repo), { headers });
     const text = await request.text();
-    if (text.length > 2048) throw new Error('Request is too large.');
+    if (text.length > 4 * 1024 * 1024) throw new Error('This import is too large for one save. Use a smaller message file.');
     const settings = JSON.parse(text);
-    return Response.json(await saveChatSettings(repo, settings.enabled, settings.announcementText), { headers });
+    return Response.json(await saveChatSettings(repo, settings.enabled, settings.announcementText, settings.messages, settings.revision), { headers });
   } catch (error) { return Response.json({ error: error.message }, { status: 400, headers }); }
 };
 export const config = { path: '/history-api/chat-settings' };

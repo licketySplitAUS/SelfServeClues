@@ -2,8 +2,9 @@ import { blobRepository } from './repository.mjs';
 import { babbleClient, env } from './babble.mjs';
 import { parseGrid } from './solver.mjs';
 import { chatSettings } from './chat-settings.mjs';
+import { chooseDailyChatMessage } from './chat-message.mjs';
 
-export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl = fetch, chatEnabled = env('NotifyBabblersOfClues') === 'true', announcementText }) {
+export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl = fetch, chatEnabled = env('NotifyBabblersOfClues') === 'true', announcementText, chooseMessage }) {
   let chatOutcome = chatEnabled ? 'waiting-for-validation' : 'disabled';
   if (event === 'published' && chatEnabled && ['matched', 'corrected'].includes(details.validation?.status)) {
     const chatKey = `${details.date}/babble-chat-${details.puzzle}`;
@@ -13,8 +14,9 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
         const client = babbleClient({ fetchImpl });
         const grid = parseGrid(await client.login());
         if (grid.puzzle !== details.puzzle || grid.date !== details.date) throw new Error('Puzzle changed.');
+        const message = chooseMessage ? await chooseMessage() : announcementText;
         submitting = true;
-        await client.chat(details.puzzle, announcementText); chatOutcome = 'sent';
+        await client.chat(details.puzzle, message); chatOutcome = 'sent';
       } catch {
         chatOutcome = 'unconfirmed';
         if (!submitting) await repo.releaseNotification(chatKey);
@@ -74,9 +76,11 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
 export async function sendConfiguredFlipNotice(event, details, options) {
   let chatEnabled = false;
   let announcementText;
-  try { const setting = await chatSettings(options.repo); chatEnabled = setting.enabled; announcementText = setting.announcementText; }
+  let messages;
+  try { const setting = await chatSettings(options.repo); chatEnabled = setting.enabled; announcementText = setting.announcementText; messages = setting.messages; }
   catch { console.error('Chat setting unavailable; public announcements are disabled for this invocation.'); }
-  return sendFlipNotice(event, details, { ...options, chatEnabled, announcementText });
+  return sendFlipNotice(event, details, { ...options, chatEnabled, announcementText,
+    chooseMessage: () => chooseDailyChatMessage(options.repo, details.date, messages, options.randomIndex) });
 }
 export const notifyFlip = (event, details, context) => sendConfiguredFlipNotice(event, details, {
   repo: blobRepository(context), webhook: env('DISCORD_PUZZLE_WEBHOOK_URL') || env('DISCORD_WEBHOOK_URL'),

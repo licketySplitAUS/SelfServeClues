@@ -3,26 +3,62 @@ import assert from 'node:assert/strict';
 import { chatSettings, saveChatSettings } from '../netlify/lib/history/chat-settings.mjs';
 import { sendConfiguredFlipNotice } from '../netlify/lib/history/notifications.mjs';
 import handler from '../netlify/functions/history-chat-settings.mjs';
+import { chatMessages, chooseDailyChatMessage } from '../netlify/lib/history/chat-message.mjs';
 
 function repository() {
   let value = null, etag = null;
   const claims = new Set();
+  const selections = new Map();
   return {
     chatSettings: async () => ({ value, etag }),
-    async commitChatSettings(next, expected) { assert.equal(expected, etag); value = next; etag = String(Number(etag || 0) + 1); },
+    async commitChatSettings(next, expected) { assert.equal(expected, etag); value = next; etag = String(Number(etag || 0) + 1); return etag; },
+    dailyChatSelection: async date => selections.get(date) || null,
+    async commitDailyChatSelection(date, value) { if (selections.has(date)) return false; selections.set(date, value); return true; },
     async claimNotification(key) { if (claims.has(key)) return false; claims.add(key); return true; },
     async releaseNotification(key) { claims.delete(key); },
   };
 }
 test('saved Admin chat setting overrides either legacy fallback and preserves changes', async () => {
   const repo = repository();
-  assert.deepEqual(await chatSettings(repo, false), { enabled: false, announcementText: 'Clues are up!', source: 'environment', changedAt: null });
+  assert.deepEqual(await chatSettings(repo, false), { enabled: false, messages: ['Clues are up!'], announcementText: 'Clues are up!', revision: null, source: 'environment', changedAt: null });
   assert.equal((await chatSettings(repo, true)).enabled, true);
   await saveChatSettings(repo, false); assert.equal((await chatSettings(repo, true)).enabled, false);
   await saveChatSettings(repo, true); assert.equal((await chatSettings(repo, false)).enabled, true);
   assert.equal((await chatSettings(repo)).source, 'admin');
   await assert.rejects(saveChatSettings(repo, 'true'), /Choose/);
   await assert.rejects(saveChatSettings({ ...repo, commitChatSettings: async () => { throw Error('Concurrent change'); } }, false), /Concurrent/);
+});
+
+test('message libraries support bulk lists, edits, removals, empty disabled lists and optimistic concurrency', async () => {
+  const repo = repository();
+  const many = Array.from({ length: 2000 }, (_, index) => `Message ${index + 1}`);
+  let result = await saveChatSettings(repo, false, undefined, many, null);
+  assert.equal(result.messages.length, 2000);
+  const oldRevision = result.revision;
+  result = await saveChatSettings(repo, false, undefined, [' Edited message ', many[1], many[1]], oldRevision);
+  assert.deepEqual(result.messages, ['Edited message', 'Message 2']);
+  await assert.rejects(saveChatSettings(repo, false, undefined, ['Stale change'], oldRevision), /Reload/);
+  await saveChatSettings(repo, true);
+  assert.deepEqual((await chatSettings(repo)).messages, result.messages, 'Switch-only saves preserve the whole library');
+  await saveChatSettings(repo, true, 'Legacy tab edit');
+  assert.deepEqual((await chatSettings(repo)).messages, ['Legacy tab edit', 'Message 2']);
+  await assert.rejects(saveChatSettings(repo, true, undefined, []), /at least one/);
+  await saveChatSettings(repo, false, undefined, []);
+  assert.deepEqual((await chatSettings(repo)).messages, []);
+  assert.throws(() => chatMessages(['Good', 'bad\nline']), /Message 2/);
+  assert.throws(() => chatMessages(['Good', null]), /Message 2/);
+});
+
+test('daily random choices persist across retries and library edits, and concurrent selectors use one winner', async () => {
+  const repo = repository();
+  assert.equal(await chooseDailyChatMessage(repo, '2026-10-22', ['First', 'Second'], max => { assert.equal(max, 2); return 1; }), 'Second');
+  assert.equal(await chooseDailyChatMessage(repo, '2026-10-22', ['New text'], () => assert.fail('Must not reroll')), 'Second');
+  assert.equal(await chooseDailyChatMessage(repo, '2026-10-23', ['First', 'Second'], () => 0), 'First');
+  const race = repository();
+  const choices = await Promise.all([chooseDailyChatMessage(race, '2026-10-22', ['A', 'B'], () => 0), chooseDailyChatMessage(race, '2026-10-22', ['A', 'B'], () => 1)]);
+  assert.equal(choices[0], choices[1]);
+  await assert.rejects(chooseDailyChatMessage(repo, '2026-10-24', []), /at least one/);
+  await assert.rejects(chooseDailyChatMessage({ ...repo, dailyChatSelection: async () => { throw Error('Storage unavailable'); } }, '2026-10-24', ['Hello']), /Storage/);
 });
 
 test('custom text persists without enabling announcements and survives toggle-only updates', async () => {
@@ -75,7 +111,7 @@ test('Admin toggle controls actual notification path without posting on save or 
     await sendConfiguredFlipNotice('published', details, { repo, fetchImpl });
     await sendConfiguredFlipNotice('published', details, { repo, fetchImpl }); assert.deepEqual(messages, ['Clues are up!']);
     const custom = 'Clues are ready! Visit r46.me — enjoy & have fun!';
-    await saveChatSettings(repo, true, custom);
+    await saveChatSettings(repo, true, undefined, ['Another message', custom]);
     await sendConfiguredFlipNotice('published', details, { repo, fetchImpl });
     assert.deepEqual(messages, ['Clues are up!'], 'Editing text must not repeat an already announced puzzle');
     const nextDetails = { puzzle: 8617, date: '2026-10-21', validation: { status: 'matched' } };
@@ -83,7 +119,7 @@ test('Admin toggle controls actual notification path without posting on save or 
       if (String(url).includes('/action/add_chat_message')) messages.push(new URLSearchParams(options.body).get('message'));
       return new Response('You are logged in as: test <a href="/8617/10/21/2026#chat_log">chat</a>' + '<img src="/images/a.gif">'.repeat(25));
     };
-    await sendConfiguredFlipNotice('published', nextDetails, { repo, fetchImpl: nextFetch });
+    await sendConfiguredFlipNotice('published', nextDetails, { repo, fetchImpl: nextFetch, randomIndex: () => 1 });
     await sendConfiguredFlipNotice('published', nextDetails, { repo, fetchImpl: nextFetch });
     assert.deepEqual(messages, ['Clues are up!', custom]);
   } finally { for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } }
@@ -96,4 +132,28 @@ test('unavailable saved setting disables chat and still permits a Discord report
   });
   assert.equal(result.outcome, 'sent'); assert.equal(payloads.length, 1);
   assert.equal(payloads[0].embeds[0].fields.find(row => row.name === 'Babble chat').value, 'Announcement disabled.');
+});
+
+test('a failed daily-choice read posts nothing and releases the puzzle claim for a later retry', async () => {
+  const saved = { BABBLE_USERNAME: process.env.BABBLE_USERNAME, BABBLE_PASSWORD: process.env.BABBLE_PASSWORD };
+  process.env.BABBLE_USERNAME = 'test'; process.env.BABBLE_PASSWORD = 'test';
+  try {
+    const repo = repository();
+    await saveChatSettings(repo, true, undefined, ['First', 'Second']);
+    const read = repo.dailyChatSelection;
+    let unavailable = true;
+    repo.dailyChatSelection = async date => { if (unavailable) throw Error('Choice storage unavailable'); return read(date); };
+    const posts = [];
+    const fetchImpl = async (url, options) => {
+      if (String(url).includes('/action/add_chat_message')) posts.push(new URLSearchParams(options.body).get('message'));
+      return new Response('You are logged in as: test <a href="/8617/10/21/2026#chat_log">chat</a>' + '<img src="/images/a.gif">'.repeat(25));
+    };
+    const details = { puzzle: 8617, date: '2026-10-21', validation: { status: 'matched' } };
+    await sendConfiguredFlipNotice('published', details, { repo, fetchImpl, randomIndex: () => 1 });
+    assert.deepEqual(posts, []);
+    unavailable = false;
+    await sendConfiguredFlipNotice('published', details, { repo, fetchImpl, randomIndex: () => 1 });
+    await sendConfiguredFlipNotice('published', details, { repo, fetchImpl, randomIndex: () => assert.fail('Must not choose after posting') });
+    assert.deepEqual(posts, ['Second']);
+  } finally { for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } }
 });
