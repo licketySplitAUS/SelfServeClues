@@ -7,3 +7,6 @@
 @keyframes babble-expert-rainbow-wave{0%,40%{transform:translate3d(-140%,0,0);opacity:0}50%{opacity:.95}90%{opacity:.95}100%{transform:translate3d(140%,0,0);opacity:0}}
 @media(prefers-reduced-motion:reduce){.expert-button-wrap a.babble-expert-button{transition:none}.expert-button-wrap a.babble-expert-button::before{animation:none;opacity:0}}
 @media print{.expert-button-wrap a.babble-expert-button::before{display:none}}
+
+.lickety-info-link{margin:24px 0 0;text-align:right}
+.lickety-info-link a{display:inline-block;margin:0}

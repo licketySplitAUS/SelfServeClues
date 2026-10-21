@@ -628,6 +628,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
           <span>{(dictionaryCount ?? words.length).toLocaleString()} saved words</span>
           <VisitCounter />
           {sidebarExtra}
+          <div className="lickety-info-link"><a href="https://r46.me/lickety-info.html" target="_blank" rel="noopener noreferrer">Lickety Info</a></div>
         </aside>
       </div>
     </main>
