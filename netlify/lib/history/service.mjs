@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { adjust, meta, snapshotFor } from './stats.mjs';
+import { adjust, meta, snapshotFor, unseenFourLetterWords } from './stats.mjs';
 import { parseGrid, sameGrid, solveGrid, validIdentity } from './solver.mjs';
 
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16);
@@ -25,6 +25,27 @@ export function makeService({ repo, baseline, archivedGame, fetchImpl = fetch, c
         status: 'Imported database snapshot.',
       });
     return { ...snapshot, monitor: { lastCheck: value?.lastCheck || null, message: value?.message || null, candidate: value?.candidate || null } };
+  }
+  async function aggregateFor(state) {
+    const aggregate = structuredClone(baseline.aggregate);
+    const replaced = new Set(Object.keys(state.puzzles).map(Number));
+    const games = baseline.games.filter(item => !replaced.has(item.puzzle));
+    for (const puzzle of Object.values(state.puzzles)) {
+      const imported = await archivedGame(puzzle.puzzle);
+      if (imported) adjust(aggregate, imported, -1);
+      adjust(aggregate, puzzle); games.push(meta(puzzle));
+    }
+    return { aggregate, games };
+  }
+  async function unseenWords() {
+    const { value } = await repo.control();
+    const state = await stateFor(value);
+    const { aggregate, games } = await aggregateFor(state);
+    const dates = games.map(game => game.date).filter(Boolean).sort();
+    return { ...unseenFourLetterWords(aggregate, activeDictionary(state.corrections)),
+      firstDate: dates[0] || null, lastDate: dates.at(-1) || null,
+      currentPuzzle: state.current.puzzle, updatedAt: state.current.solvedAt || baseline.importedAt,
+      sourceVersion: baseline.sourceVersion };
   }
   async function check({ accept = false, manualGrid = null, correction = null, rebuild = false } = {}) {
     const saved = await repo.control(), control = saved.value || {};
@@ -93,14 +114,7 @@ export function makeService({ repo, baseline, archivedGame, fetchImpl = fetch, c
     state.puzzles[grid.puzzle] = game;
     // These are derived caches, never authoritative mutable counters in Blobs.
     // Regenerate from the fixed baseline plus immutable per-puzzle source data.
-    const aggregate = structuredClone(baseline.aggregate);
-    const replaced = new Set(Object.keys(state.puzzles).map(Number));
-    const games = baseline.games.filter(item => !replaced.has(item.puzzle));
-    for (const puzzle of Object.values(state.puzzles)) {
-      const imported = await archivedGame(puzzle.puzzle);
-      if (imported) adjust(aggregate, imported, -1);
-      adjust(aggregate, puzzle); games.push(meta(puzzle));
-    }
+    const { aggregate, games } = await aggregateFor(state);
     const generation = `${now.replace(/[:.]/g, '-')}-${randomUUID()}`;
     const gameKey = `puzzles/${grid.puzzle}/${generation}`;
     state.revisions[grid.puzzle] = gameKey; state.current = game;
@@ -133,5 +147,5 @@ export function makeService({ repo, baseline, archivedGame, fetchImpl = fetch, c
     for (const key of Object.values(state.revisions)) revisions[key] = await repo.read(key);
     return { schemaVersion: 1, exportedAt: clock().toISOString(), baselineVersion: baseline.sourceVersion, control: value, state, revisions, snapshot: await current() };
   }
-  return { current, check, rollback, backup };
+  return { current, unseenWords, check, rollback, backup };
 }

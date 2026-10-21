@@ -24,6 +24,10 @@ Source branch is `main` for both. Build settings in each repository’s `netlify
 
 For recovery, keep the scheduler disabled and switch chat off in Admin after restoring data. A restored Admin chat setting overrides the legacy environment variable. Re-enable only after data, domains and today’s result have been checked. Environment-variable changes still require a new deploy; the saved Admin chat switch does not. See Netlify’s [environment variable documentation](https://docs.netlify.com/build/environment-variables/overview/).
 
+## Four-letter words not yet seen
+
+The bottom of **Lickety Info** embeds the live four-letter “not yet seen” list from `/word-history/unseen-four-letter-words.html`. It compares the active dictionary with the canonical archive plus published revisions, includes the current puzzle, and honours dictionary corrections. The list displays its grid count and date range and supports filtering and a full text download. Loading it is read-only and never checks Babble, solves a grid or sends a notification. The hosted page updates independently of the packaged desktop Info page; older installed app versions need an app update to gain the new panel.
+
 ## Enable Babble chat announcements
 
 Enter the Admin key, then use **Babble chat announcement → Announce validated clues in Babble chat**. Saving takes effect on subsequent notification checks without a deploy and does not itself post anything. Edit **Announcement text**, check its preview, then click **Save announcement text** to customise the message (one line, up to 250 characters). The default is **“Clues are up!”**. Saving text preserves the announcement switch and does not post anything or repeat a puzzle already announced. The daily processor uses the saved message after successful validation. The existing **Send current validation report to Discord** action also checks enabled chat announcements, so it can announce today's validated puzzle when used deliberately. A per-puzzle receipt prevents another announcement for that puzzle.

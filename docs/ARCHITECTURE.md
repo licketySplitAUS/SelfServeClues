@@ -168,6 +168,7 @@ The original comparison showed 7,421 historical rows versus 7,266 canonical hist
 | `/history-api/admin`: authorized POST | Check, accept, rebuild, correction, manual grid, rollback, partial legacy backup, explicit notification tests |
 | `/history-api/publication`: GET / authorized POST | Read selection/live marker; save desired mode and invoke legacy build hook |
 | `/history-api/chat-settings`: GET / authorized production POST | Read/change the saved chat announcement switch and text without deploying or posting a message |
+| `/history-api/unseen-four-letter-words`: GET | Four-letter entries in the active dictionary with no occurrence in the recorded grids, including the current published puzzle |
 | `/api/page-counter`: GET / UUID POST | Read shared count / record document visit |
 | `page-counter-checkpoint`: `0 4 * * *` UTC | Seal older visit days into immutable derived checkpoint |
 | `/history-api/recovery`: authorized GET | Inventory or read a saved object; SQL staging and emergency HTML downloads |

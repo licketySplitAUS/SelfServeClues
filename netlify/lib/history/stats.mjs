@@ -16,6 +16,13 @@ export function adjust(aggregate, game, direction = 1) {
 
 export const meta = ({ words, ...game }) => game;
 
+export function unseenFourLetterWords(aggregate, dictionary) {
+  const seen = new Set(Object.entries(aggregate.words).filter(([, count]) => count > 0).map(([key]) => key.split('|')[0]));
+  const candidates = [...new Set(dictionary.filter(word => /^[a-z]{4}$/.test(word)))].sort();
+  const words = candidates.filter(word => !seen.has(word));
+  return { words, count: words.length, dictionaryWords: candidates.length, gridCount: aggregate.games };
+}
+
 export function summarize(aggregate, games, dictionary) {
   const rows = Object.entries(aggregate.words).map(([key, count]) => {
     const [word, score] = key.split('|');
