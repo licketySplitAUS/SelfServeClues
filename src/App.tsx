@@ -633,8 +633,6 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
           <div className="expert-button-wrap"><a className="babble-expert-button" href="/babble-expert.html?from=rainbow-button" target="_blank" rel="noopener noreferrer"><span>Babble Expert</span></a></div>
           <h3>Handy Links</h3>
           <a href="https://www.playbabble.com/" target="_blank" rel="noreferrer">Babble</a>
-          <a href="https://r46.me/babbleclues" target="_blank" rel="noreferrer">lickety&apos;s Babble Clues</a>
-          <a href="#top">Back to top</a>
           <h3>Word Lists</h3>
           <nav className="word-list-links" aria-label="Word lists by length">
             {Array.from({ length: 9 }, (_, index) => index + 4).map(length =>
