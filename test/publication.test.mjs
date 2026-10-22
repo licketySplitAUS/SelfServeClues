@@ -102,7 +102,8 @@ test('cancelled or missed launch never switches, and cannot recur the next day o
   assert.equal((await store.get()).enabled, false);
 });
 
-test('hook rejection is visible and duplicate ticks never send another launch request', async () => {
+test('hook rejection is visible and duplicate ticks never send another launch request', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: +launchTime });
   const store = fixture(); await arm(store); let builds = 0;
   const fetchImpl = async () => { builds++; return new Response(null, { status: 503 }); };
   assert.equal((await runPublicationLaunch({ store, hook, now: launchTime, fetchImpl })).outcome, 'deployment-failed');

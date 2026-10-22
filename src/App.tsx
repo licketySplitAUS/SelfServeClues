@@ -1,3 +1,4 @@
+import { reconcileFound } from '../shared/live-clues.mjs';
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import LoadingClues from './LoadingClues';
@@ -137,6 +138,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   const [entryWord, setEntryWord] = useState("");
   const [entryMessage, setEntryMessage] = useState("");
   const foundRef = useRef<string[]>([]);
+  const restoredPuzzle = useRef<string | null>(null);
   const grabInFlight = useRef(false);
   const wordInputRef = useRef<HTMLInputElement>(null);
   const supportClicks = useRef({ count: 0, startedAt: 0 });
@@ -201,16 +203,20 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   }, [publishedPuzzle]);
 
   useEffect(() => {
-    if (!puzzle) return;
+    if (!puzzle || !clues.length) return;
+    const samePuzzle = restoredPuzzle.current === puzzle;
+    restoredPuzzle.current = puzzle;
     try {
       const saved = JSON.parse(localStorage.getItem(`${publishedPuzzle ? 'babble-history-found' : 'babblekey-found'}-${puzzle}`) || "[]");
-      foundRef.current = saved;
-      setFound(saved);
+      const restored = reconcileFound(saved, clues.map(clue => clue.word));
+      foundRef.current = restored;
+      setFound(restored);
     } catch {
-      foundRef.current = [];
-      setFound([]);
+      const restored = samePuzzle ? reconcileFound(foundRef.current, clues.map(clue => clue.word)) : [];
+      foundRef.current = restored;
+      setFound(restored);
     }
-  }, [puzzle]);
+  }, [puzzle, clues]);
 
   useEffect(() => {
     foundRef.current = found;

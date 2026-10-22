@@ -11,7 +11,7 @@ export type Stats = {
   over12: { length: string; seen: number; searched: number }; dictionaryCount: number;
 };
 export type Snapshot = {
-  schemaVersion: number; source: string; sourceVersion: string; updatedAt: string; status: string;
+  generation?: string; schemaVersion: number; source: string; sourceVersion: string; updatedAt: string; status: string;
   schedulingEnabled?: boolean;
   startMinute?: number;
   current: Game & { words: Word[] }; history: Stats;
