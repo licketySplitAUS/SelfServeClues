@@ -157,3 +157,36 @@ test('a failed daily-choice read posts nothing and releases the puzzle claim for
     assert.deepEqual(posts, ['Second']);
   } finally { for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } }
 });
+
+
+test('Discord includes the randomly selected chat text only after a successful post', async () => {
+  const saved = { BABBLE_USERNAME: process.env.BABBLE_USERNAME, BABBLE_PASSWORD: process.env.BABBLE_PASSWORD };
+  process.env.BABBLE_USERNAME = 'test'; process.env.BABBLE_PASSWORD = 'test';
+  try {
+    for (const failChat of [false, true]) {
+      const repo = repository(), posted = [], reports = [];
+      const selected = 'Today’s clues are ready — enjoy & have fun!';
+      await saveChatSettings(repo, true, undefined, ['Not selected', selected]);
+      const fetchImpl = async (url, options) => {
+        if (url === 'https://discord.example/webhook') {
+          reports.push(JSON.parse(options.body));
+          return new Response('ok');
+        }
+        if (String(url).includes('/action/add_chat_message')) {
+          posted.push(new URLSearchParams(options.body).get('message'));
+          if (failChat) throw Error('Connection lost while posting');
+        }
+        return new Response('You are logged in as: test <a href="/8617/10/21/2026#chat_log">chat</a>' + '<img src="/images/a.gif">'.repeat(25));
+      };
+      const details = { puzzle: 8617, date: '2026-10-21', validation: { status: 'matched', message: 'Verified' } };
+      const options = { repo, fetchImpl, webhook: 'https://discord.example/webhook', randomIndex: () => 1 };
+      await sendConfiguredFlipNotice('published', details, options);
+      assert.deepEqual(posted, [selected]);
+      const field = reports[0].embeds[0].fields.find(row => row.name === 'Babble chat');
+      assert.equal(field.value, failChat ? 'unconfirmed' : 'Sent: ' + selected);
+      await sendConfiguredFlipNotice('published', details, { ...options, randomIndex: () => assert.fail('Must not reroll or post again') });
+      assert.equal(posted.length, 1);
+      assert.equal(reports.length, 1);
+    }
+  } finally { for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } }
+});

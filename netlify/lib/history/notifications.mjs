@@ -6,6 +6,7 @@ import { chooseDailyChatMessage } from './chat-message.mjs';
 
 export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl = fetch, chatEnabled = env('NotifyBabblersOfClues') === 'true', announcementText, chooseMessage }) {
   let chatOutcome = chatEnabled ? 'waiting-for-validation' : 'disabled';
+  let sentChatMessage;
   if (event === 'published' && chatEnabled && ['matched', 'corrected'].includes(details.validation?.status)) {
     const chatKey = `${details.date}/babble-chat-${details.puzzle}`;
     if (await repo.claimNotification(chatKey)) {
@@ -16,7 +17,9 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
         if (grid.puzzle !== details.puzzle || grid.date !== details.date) throw new Error('Puzzle changed.');
         const message = chooseMessage ? await chooseMessage() : announcementText;
         submitting = true;
-        await client.chat(details.puzzle, message); chatOutcome = 'sent';
+        await client.chat(details.puzzle, message);
+        sentChatMessage = message;
+        chatOutcome = 'sent';
       } catch {
         chatOutcome = 'unconfirmed';
         if (!submitting) await repo.releaseNotification(chatKey);
@@ -50,7 +53,7 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
     fields.push({ name: 'PlayBabble validation', value: validation ? `${['matched', 'corrected'].includes(validation.status) ? '✓' : '⚠'} ${validation.message}`.slice(0, 1024) : 'Not yet checked against a logged-in Babble session.' });
     if (excluded.length) fields.push({ name: 'Bad words found and excluded', value: excluded.map(word => `||${word}||`).join(', ').slice(0, 1024) });
     if (validation?.differences && validation.status === 'mismatch') fields.push({ name: 'Discrepancy (our clues minus Babble)', value: JSON.stringify(validation.differences).slice(0, 1024) });
-    fields.push({ name: 'Babble chat', value: chatOutcome === 'disabled' ? 'Announcement disabled.' : chatOutcome });
+    fields.push({ name: 'Babble chat', value: chatOutcome === 'sent' ? `Sent: ${sentChatMessage}` : chatOutcome === 'disabled' ? 'Announcement disabled.' : chatOutcome });
   }
   fields.push({ name: 'Administration', value: '[Open admin & exceptions](https://selfserve.r46.me/history-admin.html)' });
   try {
