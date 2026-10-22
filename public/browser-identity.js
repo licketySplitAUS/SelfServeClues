@@ -2,7 +2,6 @@
 'use strict';
 function installBrowserIdentity(win) {
   if (win.LicketyBrowserIdentity) return win.LicketyBrowserIdentity;
-  if (/Electron\/|BabbleExpert/i.test(win.navigator.userAgent)) return { getId: () => undefined };
   const key = 'lickety_browser_id';
   const valid = id => typeof id === 'string' && /^CV-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id);
   let memoryId;
@@ -40,7 +39,7 @@ function installBrowserIdentity(win) {
       const source = new URLSearchParams(win.location.search).get('from') === 'rainbow-button' ? 'rainbow-button' : 'direct';
       try {
         Promise.resolve(win.fetch('/api/expert-guide-visit', { method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ browserId, source }), keepalive: true })).catch(() => {});
+          body: JSON.stringify({ browserId, source, client: /Electron\/|BabbleExpert/i.test(win.navigator.userAgent) ? 'expert' : 'browser' }), keepalive: true })).catch(() => {});
       } catch { /* Reading the guide never depends on notifications. */ }
     }
   }

@@ -12,13 +12,14 @@ export default async request => {
   let data;
   try { data = JSON.parse(raw); } catch { return json({ error: 'Invalid JSON' }, 400); }
   if (!validBrowserId(data?.browserId) || !['rainbow-button', 'direct'].includes(data?.source)) return json({ error: 'Invalid visit notice' }, 400);
+  if (data.client !== undefined && !['expert', 'browser'].includes(data.client)) return json({ error: 'Invalid visit client' }, 400);
   const webhook = env('DISCORD_EXPERT_GUIDE_WEBHOOK_URL');
   if (!webhook) return json({ error: 'Notification service is not configured' }, 503);
   try {
     const sent = await fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(5000),
       body: JSON.stringify({ username: 'Lickety Clues', allowed_mentions: { parse: [] }, embeds: [{
         title: 'Babble Expert information page visited', color: 0xffc857,
-        fields: [browserField(data.browserId), { name: 'Opened from', value: data.source === 'rainbow-button' ? 'Babble Expert rainbow button' : 'Direct link or bookmark', inline: true }],
+        fields: [browserField(data.browserId), { name: 'Opened from', value: data.source === 'rainbow-button' ? 'Babble Expert rainbow button' : 'Direct link or bookmark', inline: true }, { name: 'Opened in', value: data.client === 'expert' ? 'Babble Expert' : 'Web browser', inline: true }],
         timestamp: new Date().toISOString(),
       }] }),
     });

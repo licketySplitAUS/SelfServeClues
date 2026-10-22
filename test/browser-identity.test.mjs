@@ -36,12 +36,12 @@ test('storage fallback, blocked storage and malformed values are handled without
   const aliasHost = fixture({ hostname: 'selfserveclues.netlify.app' }); installBrowserIdentity(aliasHost.win); assert.doesNotMatch(aliasHost.writes[0], /Domain=/);
   assert.equal(browserAlias(known), 'Jade Robin'); assert.equal(browserAlias('bad'), 'Unidentified browser'); assert.equal(validBrowserId('BE-ABCD-EFGH'), false);
 });
-test('guide sends one visit per document with the shared ID and link source; clues and Expert send no guide visits', () => {
+test('guide sends one visit per document with the shared ID and link source; clues send no guide visits and Expert visits are identified', () => {
   const f = fixture({ guide: true, from: true }); const id = installBrowserIdentity(f.win).getId(); installBrowserIdentity(f.win);
-  assert.deepEqual(f.notices, [{ url: '/api/expert-guide-visit', data: { browserId: id, source: 'rainbow-button' } }]);
+  assert.deepEqual(f.notices, [{ url: '/api/expert-guide-visit', data: { browserId: id, source: 'rainbow-button', client: 'browser' } }]);
   const next = fixture({ guide: true, jar: f.jar }); installBrowserIdentity(next.win); assert.equal(next.notices[0].data.browserId, id); assert.equal(next.notices[0].data.source, 'direct');
   const clues = fixture(); installBrowserIdentity(clues.win); assert.equal(clues.notices.length, 0);
-  const expert = fixture({ guide: true, electron: true }); assert.equal(installBrowserIdentity(expert.win).getId(), undefined); assert.equal(expert.notices.length, 0);
+  const expert = fixture({ guide: true, electron: true, from: true }); assert.ok(validBrowserId(installBrowserIdentity(expert.win).getId())); assert.equal(expert.notices.length, 1); assert.equal(expert.notices[0].data.client, 'expert');
 });
 test('same browser alias appears in guide and fireworks reports, and no personal data is forwarded', async t => {
   const previousFetch = globalThis.fetch; const keys = ['DISCORD_EXPERT_GUIDE_WEBHOOK_URL', 'DISCORD_FIREWORKS_WEBHOOK_URL']; const previous = Object.fromEntries(keys.map(k => [k, process.env[k]]));
@@ -49,11 +49,12 @@ test('same browser alias appears in guide and fireworks reports, and no personal
   process.env.DISCORD_EXPERT_GUIDE_WEBHOOK_URL = 'https://example.invalid/guide'; process.env.DISCORD_FIREWORKS_WEBHOOK_URL = 'https://example.invalid/fireworks';
   const sent = []; globalThis.fetch = async (url, options) => { sent.push({ url, body: JSON.parse(options.body) }); return new Response(null, { status: 204 }); };
   const request = (path, body) => new Request('https://r46.me/api/' + path, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://r46.me' }, body: JSON.stringify(body) });
-  assert.equal((await guideHandler(request('expert-guide-visit', { browserId: known, source: 'rainbow-button', name: 'private-name', words: ['secretword'] }))).status, 204);
+  assert.equal((await guideHandler(request('expert-guide-visit', { browserId: known, source: 'rainbow-button', client: 'expert', name: 'private-name', words: ['secretword'] }))).status, 204);
   assert.equal((await fireworksHandler(request('clues-fireworks', { browserId: known, source: 'published', puzzle: '8618', words: 155, effect: 'fireworks' }))).status, 204);
   assert.deepEqual(sent.map(s => s.url), ['https://example.invalid/guide', 'https://example.invalid/fireworks']);
   assert.deepEqual(sent[0].body.embeds[0].fields[0], sent[1].body.embeds[0].fields[0]);
   assert.equal(sent[0].body.embeds[0].fields[1].value, 'Babble Expert rainbow button');
+  assert.equal(sent[0].body.embeds[0].fields[2].value, 'Babble Expert');
   assert.doesNotMatch(JSON.stringify(sent), /private-name|secretword/); assert.deepEqual(sent[0].body.allowed_mentions, { parse: [] });
   await fireworksHandler(request('clues-fireworks', { source: 'legacy', puzzle: '8618', words: 155, effect: 'fireworks' }));
   assert.match(sent.at(-1).body.embeds[0].fields[0].value, /older page/);
