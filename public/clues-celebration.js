@@ -212,7 +212,7 @@ function installCluesCelebration(win, fireworks = createBabbleFireworks) {
       const [source, puzzle] = detail.puzzleKey.split(':');
       try {
         const pending = win.fetch('/api/clues-fireworks', { method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ source, puzzle: /^\d{1,8}$/.test(puzzle || '') ? puzzle : null, words: detail.total, effect: reduced ? 'message' : 'fireworks' }), keepalive: true,
+          body: JSON.stringify({ browserId: win.LicketyBrowserIdentity?.getId(), source, puzzle: /^\d{1,8}$/.test(puzzle || '') ? puzzle : null, words: detail.total, effect: reduced ? 'message' : 'fireworks' }), keepalive: true,
         });
         Promise.resolve(pending).catch(() => {});
       } catch { /* The celebration remains available offline. */ }

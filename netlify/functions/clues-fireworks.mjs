@@ -1,3 +1,4 @@
+import { validBrowserId, browserField } from '../lib/browser-alias.mjs';
 import { env } from '../lib/history/babble.mjs';
 const json = (body, status) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 const sources = { legacy: 'Original clues page', published: 'New clues page', 'self-serve': 'Self Serve clues page' };
@@ -13,13 +14,14 @@ export default async request => {
   try { data = JSON.parse(raw); } catch { return json({ error: 'Invalid JSON' }, 400); }
   if (!data || typeof data.source !== 'string' || !Object.hasOwn(sources, data.source) || !Number.isInteger(data.words) || data.words < 1 || data.words > 2000 ||
       !['fireworks', 'message'].includes(data.effect) || (data.puzzle !== null && (typeof data.puzzle !== 'string' || !/^\d{1,8}$/.test(data.puzzle)))) return json({ error: 'Invalid completion notice' }, 400);
+  if (data.browserId !== undefined && !validBrowserId(data.browserId)) return json({ error: 'Invalid browser ID' }, 400);
   const webhook = env('DISCORD_FIREWORKS_WEBHOOK_URL');
   if (!webhook) return json({ error: 'Notification service is not configured' }, 503);
   try {
     const sent = await fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(5000),
       body: JSON.stringify({ username: 'Lickety Clues', allowed_mentions: { parse: [] }, embeds: [{
         title: data.effect === 'message' ? 'Clues completed — reduced-motion celebration' : 'Clues completed — fireworks triggered', color: 0xffc857,
-        fields: [
+        fields: [browserField(data.browserId),
           { name: 'Source', value: sources[data.source], inline: true },
           { name: 'Puzzle', value: data.puzzle === null ? 'Custom grid' : String(data.puzzle), inline: true },
           { name: 'Words found', value: String(data.words), inline: true },

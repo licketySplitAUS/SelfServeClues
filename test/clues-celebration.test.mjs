@@ -117,3 +117,11 @@ test('only a newly triggered browser celebration sends a completion notice, with
   const expert = fixture({ electron: true }); expert.win.fetch = () => assert.fail('Expert does not send browser reports');
   assert.equal(installCluesCelebration(expert.win, expert.fireworks).enabled, false);
 });
+
+
+test('completion report carries the browser identity without exposing a grid', () => {
+  const f = fixture(); const sent = []; const id = 'CV-12345678-1234-4234-8234-123456789abc';
+  f.win.LicketyBrowserIdentity = { getId: () => id }; f.win.fetch = (_, options) => { sent.push(JSON.parse(options.body)); return Promise.resolve({ ok: true }); };
+  installCluesCelebration(f.win, f.fireworks).progress(complete);
+  assert.equal(sent[0].browserId, id); assert.equal(sent[0].puzzle, '8618'); assert.equal(sent[0].grid, undefined);
+});

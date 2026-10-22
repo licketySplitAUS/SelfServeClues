@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import handler, { config } from '../netlify/functions/clues-fireworks.mjs';
-const valid = { source: 'published', puzzle: '8618', words: 155, effect: 'fireworks' };
+const valid = { source: 'published', puzzle: '8618', words: 155, effect: 'fireworks', browserId: 'CV-12345678-1234-4234-8234-123456789abc' };
 const request = (data = valid, headers = {}) => new Request('https://r46.me/api/clues-fireworks', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://r46.me', ...headers }, body: typeof data === 'string' ? data : JSON.stringify(data) });
-test('browser completion sends only public puzzle totals and source, never visitor details or entered words', async t => {
+test('browser completion sends an alias and public totals, never personal details or entered words', async t => {
   const priorFetch = globalThis.fetch, priorHook = process.env.DISCORD_FIREWORKS_WEBHOOK_URL;
   t.after(() => { globalThis.fetch = priorFetch; if (priorHook === undefined) delete process.env.DISCORD_FIREWORKS_WEBHOOK_URL; else process.env.DISCORD_FIREWORKS_WEBHOOK_URL = priorHook; });
   process.env.DISCORD_FIREWORKS_WEBHOOK_URL = 'https://example.invalid/private-fireworks';
@@ -12,11 +12,12 @@ test('browser completion sends only public puzzle totals and source, never visit
   const result = await handler(request({ ...valid, foundWords: ['secretword'], name: 'person-name', message: '@everyone' }), { ip: '192.0.2.1', geo: { city: 'Sydney' } });
   assert.equal(result.status, 204); assert.equal(sent.url, process.env.DISCORD_FIREWORKS_WEBHOOK_URL);
   assert.equal(sent.body.embeds[0].title, 'Clues completed — fireworks triggered');
+  assert.match(sent.body.embeds[0].fields[0].value, /CV-12345678-1234-4234-8234-123456789abc/);
   assert.deepEqual(sent.body.allowed_mentions, { parse: [] });
   assert.doesNotMatch(JSON.stringify(sent.body), /secretword|person-name|192\.0\.2\.1|Sydney|@everyone/);
-  assert.equal(sent.body.embeds[0].fields[0].value, 'New clues page');
+  assert.equal(sent.body.embeds[0].fields[1].value, 'New clues page');
   await handler(request({ ...valid, source: 'self-serve', puzzle: null, effect: 'message' }));
-  assert.match(sent.body.embeds[0].title, /reduced-motion/); assert.equal(sent.body.embeds[0].fields[1].value, 'Custom grid');
+  assert.match(sent.body.embeds[0].title, /reduced-motion/); assert.equal(sent.body.embeds[0].fields[2].value, 'Custom grid');
 });
 test('malformed and cross-site requests never contact Discord', async t => {
   const previous = globalThis.fetch; t.after(() => { globalThis.fetch = previous; });
