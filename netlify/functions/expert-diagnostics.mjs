@@ -7,7 +7,7 @@ const events = {
   'renderer-crashed': 'Page renderer stopped', unresponsive: 'Page stopped responding',
   responsive: 'Page responding again', 'update-failed': 'Expert update failed',
 };
-const components = new Set(['main', 'babble', 'clues', 'resources', 'updater']);
+const components = new Set(['main', 'babble', 'clues', 'resources', 'updater', 'tour']);
 const reasons = new Set(['exception', 'timeout', 'check', 'download', 'install', 'clean-exit', 'abnormal-exit', 'killed', 'crashed', 'oom', 'launch-failed', 'integrity-failure', 'memory-eviction', 'unknown']);
 const json = (body, status) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 const origins = new Set(['https://r46.me', 'https://selfserve.r46.me', 'https://selfserveclues.netlify.app', 'null']);

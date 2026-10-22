@@ -44,3 +44,9 @@ test('diagnostic formatting omits unexpected free text and marks recovery clearl
   assert.match(JSON.stringify(result), /42.0 seconds/);
   assert.doesNotMatch(JSON.stringify(result), /@everyone|private/);
 });
+
+test('tour failures are accepted as a distinct diagnostic component', () => {
+  const message = diagnosticMessage({ ...report, component: 'tour', reason: 'timeout', elapsedMs: 60000 });
+  assert.ok(message);
+  assert.equal(message.embeds[0].fields.find(field => field.name === 'Component').value, 'tour');
+});
