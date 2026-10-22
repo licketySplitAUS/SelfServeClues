@@ -324,11 +324,20 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
     setHasSolved(true);
   }
 
+  function announceProgress(next: string[]) {
+    const entered = new Set(next);
+    window.dispatchEvent(new CustomEvent('lickety:clues-progress', { detail: {
+      puzzleKey: `${publishedPuzzle ? 'published' : 'self-serve'}:${puzzle || ''}:${grid}`,
+      total: clues.length, found: clues.filter(clue => entered.has(clue.word)).length,
+    } }));
+  }
+
   function toggle(word: string) {
     const current = foundRef.current;
     const next = current.includes(word) ? current.filter((item) => item !== word) : [...current, word];
     foundRef.current = next;
     setFound(next);
+    announceProgress(next);
     if (puzzle) localStorage.setItem(`${publishedPuzzle ? 'babble-history-found' : 'babblekey-found'}-${puzzle}`, JSON.stringify(next));
   }
 
@@ -348,6 +357,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
     const next = [...foundRef.current, word];
     foundRef.current = next;
     setFound(next);
+    announceProgress(next);
     if (puzzle) localStorage.setItem(`${publishedPuzzle ? 'babble-history-found' : 'babblekey-found'}-${puzzle}`, JSON.stringify(next));
     fillAnswer(word);
     return "1";
