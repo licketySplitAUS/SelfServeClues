@@ -207,6 +207,16 @@ function installCluesCelebration(win, fireworks = createBabbleFireworks) {
       doc.body.appendChild(canvas);
       try { show = fireworks(canvas, { transparent: true, sound: false, clickReplay: false }); } catch { canvas.remove(); }
     }
+    // Only a newly claimed browser celebration reports; failures never affect play.
+    if (typeof win.fetch === 'function') {
+      const [source, puzzle] = detail.puzzleKey.split(':');
+      try {
+        const pending = win.fetch('/api/clues-fireworks', { method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ source, puzzle: /^\d{1,8}$/.test(puzzle || '') ? puzzle : null, words: detail.total, effect: reduced ? 'message' : 'fireworks' }), keepalive: true,
+        });
+        Promise.resolve(pending).catch(() => {});
+      } catch { /* The celebration remains available offline. */ }
+    }
     // If an Expert overlay ever appears after ours starts, hand over immediately.
     observer = new win.MutationObserver(() => { if (expertActive()) stop(); });
     observer.observe(doc.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-babble-expert'] });

@@ -109,3 +109,23 @@ test('installs, upgrades and session endings use dedicated channels with a fallb
   await notify(new Request('https://example.test/api/babble-notify',{method:'POST',body:JSON.stringify({event:'session'})}),{});
   assert.equal(sent.at(-1),'https://example.invalid/default');
 });
+
+
+test('existing Expert fireworks starts and replays use the dedicated webhook while other options stay unchanged', async t => {
+  const originalFetch = globalThis.fetch;
+  const keys = ['DISCORD_WEBHOOK_URL', 'DISCORD_FIREWORKS_WEBHOOK_URL'];
+  const prior = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  t.after(() => { globalThis.fetch = originalFetch; for (const key of keys) { if (prior[key] === undefined) delete process.env[key]; else process.env[key] = prior[key]; } });
+  process.env.DISCORD_WEBHOOK_URL = 'https://example.invalid/default';
+  process.env.DISCORD_FIREWORKS_WEBHOOK_URL = 'https://example.invalid/fireworks';
+  const sent = [];
+  globalThis.fetch = async (url, options) => { sent.push({ url, body: JSON.parse(options.body) }); return new Response(null, { status: 204 }); };
+  for (const [event, item] of [['option', 'Fireworks'], ['option', 'Fireworks replay'], ['resource', 'Fireworks'], ['option', 'Zoom 100%']]) {
+    assert.equal((await notify(new Request('https://example.test/api/babble-notify', { method: 'POST', body: JSON.stringify({ event, item, anonymousId: 'BE-ABCD-EFGH' }) }), {})).status, 204);
+  }
+  assert.deepEqual(sent.map(s => s.url), ['https://example.invalid/fireworks', 'https://example.invalid/fireworks', 'https://example.invalid/fireworks', 'https://example.invalid/default']);
+  assert.equal(sent[0].body.embeds[0].title, 'Babble Expert fireworks triggered');
+  delete process.env.DISCORD_FIREWORKS_WEBHOOK_URL;
+  await notify(new Request('https://example.test/api/babble-notify', { method: 'POST', body: JSON.stringify({ event: 'option', item: 'Fireworks' }) }), {});
+  assert.equal(sent.at(-1).url, 'https://example.invalid/default');
+});

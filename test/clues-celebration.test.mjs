@@ -102,3 +102,18 @@ test('the actual canvas renderer starts, advances and shuts down without audio o
   assert.ok(f.win.document.getElementById('lickety-clues-fireworks'));
   f.events.get('keydown')({ key: 'Escape' }); assert.equal(frames.size, 0); assert.equal(f.timers.size, 0);
 });
+
+
+test('only a newly triggered browser celebration sends a completion notice, with no grid or entered words', async () => {
+  const f = fixture(); const notices = [];
+  f.win.fetch = (url, options) => { notices.push({ url, options, data: JSON.parse(options.body) }); return Promise.reject(Error('offline')); };
+  const controller = installCluesCelebration(f.win, f.fireworks);
+  controller.progress({ ...complete, found: 2 }); assert.equal(notices.length, 0);
+  controller.progress(complete); controller.progress(complete); assert.equal(notices.length, 1);
+  assert.equal(notices[0].url, '/api/clues-fireworks');
+  assert.deepEqual(notices[0].data, { source: 'published', puzzle: '8618', words: 3, effect: 'fireworks' });
+  assert.equal(notices[0].options.keepalive, true); assert.equal(f.shows(), 1);
+  await Promise.resolve();
+  const expert = fixture({ electron: true }); expert.win.fetch = () => assert.fail('Expert does not send browser reports');
+  assert.equal(installCluesCelebration(expert.win, expert.fireworks).enabled, false);
+});

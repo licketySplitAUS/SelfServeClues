@@ -1,3 +1,4 @@
+import { env } from "../lib/history/babble.mjs";
 import { anonymousAlias } from "../lib/anonymous-alias.mjs";
 
 const json = (body, status = 200) => Response.json(body, {
@@ -33,7 +34,8 @@ export default async (request, context) => {
     return json({ error: "Invalid event" }, 400);
   }
 
-  const webhookUrl = (data.event === 'upgrade' ? process.env.DISCORD_UPGRADE_WEBHOOK_URL
+  const fireworks = ['resource', 'option'].includes(data.event) && /^Fireworks(?: replay)?$/i.test(String(data.item || '').trim());
+  const webhookUrl = (fireworks ? env('DISCORD_FIREWORKS_WEBHOOK_URL') : data.event === 'upgrade' ? process.env.DISCORD_UPGRADE_WEBHOOK_URL
     : data.event === 'install' ? process.env.DISCORD_NEW_USER_WEBHOOK_URL
     : data.event === 'session' ? process.env.DISCORD_SESSION_WEBHOOK_URL : null) || process.env.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return json({ error: "Notification service is not configured" }, 503);
@@ -71,8 +73,8 @@ export default async (request, context) => {
     username: "Babble Expert",
     allowed_mentions: { parse: [] },
     embeds: [{
-      title: titles[data.event],
-      color: colors[data.event],
+      title: fireworks ? "Babble Expert fireworks triggered" : titles[data.event],
+      color: fireworks ? 0xffc857 : colors[data.event],
       fields,
       timestamp: new Date().toISOString(),
     }],
@@ -84,6 +86,7 @@ export default async (request, context) => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(message),
+      signal: AbortSignal.timeout(5000),
     });
   } catch {
     return json({ error: "Notification service is unavailable" }, 502);
