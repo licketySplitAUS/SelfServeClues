@@ -1,4 +1,4 @@
-import { env } from './babble.mjs';
+import { env } from '../env.mjs';
 import { chatMessage, chatMessages } from './chat-message.mjs';
 
 const storedMessages = value => value?.messages === undefined ? [chatMessage(value?.announcementText)] : chatMessages(value.messages);

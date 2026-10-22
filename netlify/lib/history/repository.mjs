@@ -1,5 +1,5 @@
 import { getStore, getDeployStore } from '@netlify/blobs';
-import { env } from './babble.mjs';
+import { env } from '../env.mjs';
 
 // Intentionally separate from babble-shared-data used by the live clues page.
 export function blobRepository(context) {

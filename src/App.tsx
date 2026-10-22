@@ -113,10 +113,11 @@ type AppProps = {
   onRefresh?: () => Promise<void>;
   statistics?: ReactNode;
   sidebarExtra?: ReactNode;
+  pageNotice?: ReactNode;
   dictionaryCount?: number;
 };
 
-export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExtra, dictionaryCount }: AppProps = {}) {
+export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExtra, dictionaryCount, pageNotice }: AppProps = {}) {
   const printable = new URLSearchParams(window.location.search).get('print') === '1';
   const publicCluesPath = /^\/(?:babbleclues(?:\.html)?|new-babbleclues)\/?$/.test(window.location.pathname) ? window.location.pathname : null;
   const previewPath = publicCluesPath || '/history-preview.html';
@@ -459,6 +460,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
 
   if (printable) return (
     <main className="printable-document">
+      {pageNotice}
       <div className="print-toolbar"><a href={publishedPuzzle ? previewPath : selfServePath}>Back to clues</a><button type="button" disabled={!clues.length} onClick={() => window.print()}>Print</button></div>
       <p className="print-credit">Printable Babble Clues&nbsp;&nbsp; <small>brought to you by licketySplitAUS</small></p>
       <InceptionDate />
@@ -472,6 +474,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
 
   return (
     <main id="top" className="page">
+      {pageNotice}
       <header>
         <h1>{publishedPuzzle ? "lickety's Babble Clues" : "lickety's Self Serve Babble Clues"}</h1>
         <p>

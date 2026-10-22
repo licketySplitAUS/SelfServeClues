@@ -1,5 +1,5 @@
 import { getStore } from '@netlify/blobs';
-import { env } from '../lib/history/babble.mjs';
+import { env } from '../lib/env.mjs';
 import { runPublicationLaunch } from '../lib/publication.mjs';
 
 export default async (request, context) => {

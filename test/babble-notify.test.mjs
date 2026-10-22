@@ -81,6 +81,7 @@ test("Babble notification sends only the approved fields to Discord", async (t) 
 
   const sessionResponse = await notify(new Request("https://example.test/api/babble-notify", {
     method: "POST",
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ event: "session", version: "3.1.2", platform: "Windows", architecture: "x64", anonymousId: "BE-ABCD-EFGH", durationSeconds: 3725 }),
   }), { geo: { country: { name: "Australia" } } });
   assert.equal(sessionResponse.status, 204);
@@ -89,6 +90,7 @@ test("Babble notification sends only the approved fields to Discord", async (t) 
 
   await notify(new Request("https://example.test/api/babble-notify", {
     method: "POST",
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ event: "upgrade", version: "3.2.0", previousVersion: "3.1.2", platform: "Windows", architecture: "x64", anonymousId: "BE-ABCD-EFGH" }),
   }), { geo: { country: { name: "Australia" } } });
   assert.deepEqual(sent.body.embeds[0].fields[0], { name: "Version update", value: "3.1.2 -> 3.2.0", inline: false });
@@ -103,10 +105,10 @@ test('installs, upgrades and session endings use dedicated channels with a fallb
   process.env.DISCORD_WEBHOOK_URL='https://example.invalid/default';process.env.DISCORD_UPGRADE_WEBHOOK_URL='https://example.invalid/upgrades';process.env.DISCORD_NEW_USER_WEBHOOK_URL='https://example.invalid/new-users';
   process.env.DISCORD_SESSION_WEBHOOK_URL='https://example.invalid/sessions';
   globalThis.fetch=async(url)=>{sent.push(url);return new Response(null,{status:204});};
-  for(const event of ['install','upgrade','resource','option','session']) await notify(new Request('https://example.test/api/babble-notify',{method:'POST',body:JSON.stringify({event,anonymousId:'BE-ABCD-EFGH'})}),{});
+  for(const event of ['install','upgrade','resource','option','session']) await notify(new Request('https://example.test/api/babble-notify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event,anonymousId:'BE-ABCD-EFGH'})}),{});
   assert.deepEqual(sent,['https://example.invalid/new-users','https://example.invalid/upgrades','https://example.invalid/default','https://example.invalid/default','https://example.invalid/sessions']);
   delete process.env.DISCORD_SESSION_WEBHOOK_URL;
-  await notify(new Request('https://example.test/api/babble-notify',{method:'POST',body:JSON.stringify({event:'session'})}),{});
+  await notify(new Request('https://example.test/api/babble-notify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'session'})}),{});
   assert.equal(sent.at(-1),'https://example.invalid/default');
 });
 
@@ -121,11 +123,11 @@ test('existing Expert fireworks starts and replays use the dedicated webhook whi
   const sent = [];
   globalThis.fetch = async (url, options) => { sent.push({ url, body: JSON.parse(options.body) }); return new Response(null, { status: 204 }); };
   for (const [event, item] of [['option', 'Fireworks'], ['option', 'Fireworks replay'], ['resource', 'Fireworks'], ['option', 'Zoom 100%']]) {
-    assert.equal((await notify(new Request('https://example.test/api/babble-notify', { method: 'POST', body: JSON.stringify({ event, item, anonymousId: 'BE-ABCD-EFGH' }) }), {})).status, 204);
+    assert.equal((await notify(new Request('https://example.test/api/babble-notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ event, item, anonymousId: 'BE-ABCD-EFGH' }) }), {})).status, 204);
   }
   assert.deepEqual(sent.map(s => s.url), ['https://example.invalid/fireworks', 'https://example.invalid/fireworks', 'https://example.invalid/fireworks', 'https://example.invalid/default']);
   assert.equal(sent[0].body.embeds[0].title, 'Babble Expert fireworks triggered');
   delete process.env.DISCORD_FIREWORKS_WEBHOOK_URL;
-  await notify(new Request('https://example.test/api/babble-notify', { method: 'POST', body: JSON.stringify({ event: 'option', item: 'Fireworks' }) }), {});
+  await notify(new Request('https://example.test/api/babble-notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ event: 'option', item: 'Fireworks' }) }), {});
   assert.equal(sent.at(-1).url, 'https://example.invalid/default');
 });

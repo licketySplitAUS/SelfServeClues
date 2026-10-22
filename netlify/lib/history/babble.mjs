@@ -2,11 +2,12 @@ import { load } from 'cheerio';
 import { parseGrid, sameGrid } from './solver.mjs';
 import { chatMessage } from './chat-message.mjs';
 
-export const env = name => globalThis.Netlify?.env?.get(name) ?? process.env[name];
+import { env, productionNotifications } from '../env.mjs';
+export { env };
 const origin = 'https://www.playbabble.com';
 
 // Cookies stay in this invocation. Never store a password, cookie or upstream HTML.
-export function babbleClient({ fetchImpl = fetch, username = env('BABBLE_USERNAME'), password = env('BABBLE_PASSWORD') } = {}) {
+export function babbleClient({ fetchImpl = fetch, username = productionNotifications() ? env('BABBLE_USERNAME') : undefined, password = productionNotifications() ? env('BABBLE_PASSWORD') : undefined } = {}) {
   const cookies = new Map();
   const deadline = Date.now() + 24000;
   async function request(path, fields, redirects = 0) {

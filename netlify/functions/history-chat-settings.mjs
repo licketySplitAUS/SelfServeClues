@@ -1,4 +1,4 @@
-import { authorized } from '../lib/history/runtime.mjs';
+import { authorized } from '../lib/admin-auth.mjs';
 import { blobRepository } from '../lib/history/repository.mjs';
 import { chatSettings, saveChatSettings } from '../lib/history/chat-settings.mjs';
 

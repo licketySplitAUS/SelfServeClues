@@ -3,8 +3,10 @@ import { babbleClient, env } from './babble.mjs';
 import { parseGrid } from './solver.mjs';
 import { chatSettings } from './chat-settings.mjs';
 import { chooseDailyChatMessage } from './chat-message.mjs';
+import { productionNotifications } from '../env.mjs';
 
 export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl = fetch, chatEnabled = env('NotifyBabblersOfClues') === 'true', announcementText, chooseMessage }) {
+  if (!productionNotifications()) return { outcome: 'preview-disabled' };
   let chatOutcome = chatEnabled ? 'waiting-for-validation' : 'disabled';
   let sentChatMessage;
   if (event === 'published' && chatEnabled && ['matched', 'corrected'].includes(details.validation?.status)) {

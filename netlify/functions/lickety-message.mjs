@@ -1,7 +1,9 @@
+import { env, productionNotifications } from '../lib/env.mjs';
 const response = (body, status) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 
 export default async request => {
   if (request.method !== 'POST') return response({ error: 'Method not allowed' }, 405);
+  if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return response({ error: 'JSON required' }, 415);
   const raw = await request.text();
   if (raw.length > 4096) return response({ error: 'Message is too large' }, 413);
   let data;
@@ -14,7 +16,8 @@ export default async request => {
   if (typeof email !== 'string' || email.length > 254 || (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))) {
     return response({ error: 'Enter a valid email address or leave it blank.' }, 400);
   }
-  const webhook = process.env.DISCORD_MESSAGE_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL;
+  if (!productionNotifications()) return response({ error: 'Messages are disabled on preview deployments.' }, 503);
+  const webhook = env('DISCORD_MESSAGE_WEBHOOK_URL') || env('DISCORD_WEBHOOK_URL');
   if (!webhook) return response({ error: 'Messages are temporarily unavailable. Please try again later.' }, 503);
   const version = String(data.version || 'Unknown').replace(/[^0-9.a-z-]/gi, '').slice(0, 24) || 'Unknown';
   try {
@@ -32,4 +35,4 @@ export default async request => {
     return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
   } catch { return response({ error: 'Your message could not be delivered. Please try again.' }, 502); }
 };
-export const config = { path: '/api/lickety-message' };
+export const config = { path: '/api/lickety-message', rateLimit: { action: 'rate_limit', aggregateBy: ['ip', 'domain'], windowLimit: 5, windowSize: 60 } };

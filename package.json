@@ -14,7 +14,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test \"test/*.test.mjs\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node tools/patch-braces.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "11.0.1",
@@ -26,8 +27,11 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
-    "netlify-cli": "27.13.0",
+    "netlify-cli": "27.14.1",
     "typescript": "5.9.3",
-    "vite": "8.0.13"
+    "vite": "8.3.5"
+  },
+  "overrides": {
+    "multiparty": "4.3.1"
   }
 }

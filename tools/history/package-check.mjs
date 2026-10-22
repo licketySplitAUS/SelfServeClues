@@ -12,13 +12,14 @@ const directory = path.join(root, 'artifacts/history-packages');
 await fs.mkdir(directory, { recursive: true });
 const results = await zipFunctions(path.join(root, 'netlify/functions'), directory, {
   basePath: root, repositoryRoot: root,
-  config: { 'history-*': { includedFiles: ['data/history/**'], includedFilesBasePath: root, nodeBundler: 'esbuild' } },
+  config: { 'history-*': { nodeBundler: 'esbuild' }, ...Object.fromEntries(['history-admin', 'history-current', 'history-process', 'history-recovery', 'history-unseen-words'].map(name => [name, { includedFiles: ['data/history/**'], includedFilesBasePath: root, nodeBundler: 'esbuild' }])) },
 });
 for (const result of results.filter(item => item.name.startsWith('history-'))) {
   assert.ok(result.size < 10000000, 'History function package remains small');
   console.log(JSON.stringify({ name: result.name, size: result.size, runtime: result.runtime, schedule: result.schedule, routes: result.routes, path: result.path }));
 }
 assert.ok(results.find(item => item.name === 'clues-version')?.size < 500000, 'Version checks must not bundle the dictionary or puzzle archive');
+for (const name of ['history-chat-settings', 'history-publication', 'history-launch', 'history-tick', 'expert-diagnostics']) assert.ok(results.find(item => item.name === name)?.size < 500000, `${name} must remain lightweight`);
 assert.equal(results.find(item => item.name === 'history-tick')?.schedule, '* 5-7 * * *');
 assert.equal(results.find(item => item.name === 'history-launch')?.schedule, '* 5-6 22 10 *');
 assert.equal(results.some(item => item.name === 'history-retry'), false);

@@ -6,9 +6,19 @@
 [build.environment]
   NODE_VERSION = "22"
 
-# Only the isolated experiment needs the imported archive in its server bundle.
+# Only handlers that solve/read/recover history need the imported archive.
 [functions."history-*"]
   node_bundler = "esbuild"
+
+[functions."history-admin"]
+  included_files = ["data/history/**"]
+[functions."history-current"]
+  included_files = ["data/history/**"]
+[functions."history-process"]
+  included_files = ["data/history/**"]
+[functions."history-recovery"]
+  included_files = ["data/history/**"]
+[functions."history-unseen-words"]
   included_files = ["data/history/**"]
 
 [[headers]]

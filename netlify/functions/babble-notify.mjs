@@ -1,4 +1,4 @@
-import { env } from "../lib/history/babble.mjs";
+import { env, productionNotifications } from "../lib/env.mjs";
 import { anonymousAlias } from "../lib/anonymous-alias.mjs";
 
 const json = (body, status = 200) => Response.json(body, {
@@ -24,6 +24,7 @@ const duration = (value) => {
 
 export default async (request, context) => {
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return json({ error: 'JSON required' }, 415);
 
   const raw = await request.text();
   if (raw.length > 2048) return json({ error: "Request is too large" }, 413);
@@ -35,9 +36,10 @@ export default async (request, context) => {
   }
 
   const fireworks = ['resource', 'option'].includes(data.event) && /^Fireworks(?: replay)?$/i.test(String(data.item || '').trim());
-  const webhookUrl = (fireworks ? env('DISCORD_FIREWORKS_WEBHOOK_URL') : data.event === 'upgrade' ? process.env.DISCORD_UPGRADE_WEBHOOK_URL
-    : data.event === 'install' ? process.env.DISCORD_NEW_USER_WEBHOOK_URL
-    : data.event === 'session' ? process.env.DISCORD_SESSION_WEBHOOK_URL : null) || process.env.DISCORD_WEBHOOK_URL;
+  if (!productionNotifications()) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
+  const webhookUrl = (fireworks ? env('DISCORD_FIREWORKS_WEBHOOK_URL') : data.event === 'upgrade' ? env('DISCORD_UPGRADE_WEBHOOK_URL')
+    : data.event === 'install' ? env('DISCORD_NEW_USER_WEBHOOK_URL')
+    : data.event === 'session' ? env('DISCORD_SESSION_WEBHOOK_URL') : null) || env('DISCORD_WEBHOOK_URL');
   if (!webhookUrl) return json({ error: "Notification service is not configured" }, 503);
 
   const country = clean(context.geo?.country?.name || context.geo?.country?.code || "Unknown", 60);
@@ -95,4 +97,4 @@ export default async (request, context) => {
   return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
 };
 
-export const config = { path: "/api/babble-notify" };
+export const config = { path: "/api/babble-notify", rateLimit: { action: 'rate_limit', aggregateBy: ['ip', 'domain'], windowLimit: 60, windowSize: 60 } };

@@ -1,6 +1,6 @@
 import { getStore, getDeployStore } from '@netlify/blobs';
-import { authorized } from '../lib/history/runtime.mjs';
-import { env } from '../lib/history/babble.mjs';
+import { authorized } from '../lib/admin-auth.mjs';
+import { env } from '../lib/env.mjs';
 import { publicationStatus, setPublication, configureLaunch } from '../lib/publication.mjs';
 
 export default async (request, context) => {

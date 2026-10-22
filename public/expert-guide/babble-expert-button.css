@@ -8,5 +8,5 @@
 @media(prefers-reduced-motion:reduce){.expert-button-wrap a.babble-expert-button{transition:none}.expert-button-wrap a.babble-expert-button::before{animation:none;opacity:0}}
 @media print{.expert-button-wrap a.babble-expert-button::before{display:none}}
 
-.lickety-info-link{margin:24px 0 0;text-align:right}
+.lickety-info-link{margin:24px 0 0;text-align:left}
 .lickety-info-link a{display:inline-block;margin:0}

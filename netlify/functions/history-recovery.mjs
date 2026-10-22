@@ -4,11 +4,12 @@ import { gzipSync } from 'node:zlib';
 import { sqlExport, emergencyPage } from '../lib/recovery-exports.mjs';
 import { loadBaseline } from '../lib/history/baseline.mjs';
 import { inventory, readRecord } from '../lib/recovery.mjs';
+import { env } from '../lib/env.mjs';
 
 export default async (request, context) => {
   const headers = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
   if (request.method !== 'GET') return Response.json({ error: 'Method not allowed' }, { status: 405, headers });
-  if (!authorized(request)) return Response.json({ error: 'The admin key is required for backups.' }, { status: 403, headers });
+  if (!authorized(request) && !authorized(request, env('HISTORY_BACKUP_KEY'))) return Response.json({ error: 'The admin or read-only backup key is required for backups.' }, { status: 403, headers });
   if (context?.deploy?.context !== 'production') return Response.json({ error: 'Use the production Admin page for recovery backups.' }, { status: 403, headers });
   try {
     const openStore = name => getStore({ name, consistency: 'strong' });

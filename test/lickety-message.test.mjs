@@ -4,7 +4,7 @@ test('explicit messages validate limits and optional contact details, disable me
  const oldFetch=globalThis.fetch,old=process.env.DISCORD_MESSAGE_WEBHOOK_URL;let sent,calls=0;
  t.after(()=>{globalThis.fetch=oldFetch;if(old===undefined)delete process.env.DISCORD_MESSAGE_WEBHOOK_URL;else process.env.DISCORD_MESSAGE_WEBHOOK_URL=old;});
  process.env.DISCORD_MESSAGE_WEBHOOK_URL='https://example.invalid/messages';globalThis.fetch=async(url,options)=>{calls++;sent={url,body:JSON.parse(options.body)};return new Response(null,{status:204});};
- const send=body=>message(new Request('https://example.test/api/lickety-message',{method:'POST',body:JSON.stringify(body)}));
+ const send=body=>message(new Request('https://example.test/api/lickety-message',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}));
  assert.equal((await send({message:''})).status,400);assert.equal((await send({message:'x'.repeat(501)})).status,400);assert.equal(calls,0);
  assert.equal((await send({message:'Hello @everyone\nThanks, lickety!',version:'3.2.10.0',anonymousId:'do-not-forward',word:'do-not-forward'})).status,204);
  assert.equal(sent.url,'https://example.invalid/messages');assert.deepEqual(sent.body.allowed_mentions,{parse:[]});assert.equal(sent.body.embeds[0].description,'Hello @everyone\nThanks, lickety!');

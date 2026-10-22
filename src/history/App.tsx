@@ -4,10 +4,12 @@ import type { Snapshot } from './types';
 import Statistics from './Statistics';
 import LoadingClues from '../LoadingClues';
 import { watchClueUpdates } from '../../shared/live-clues.mjs';
+import { loadCluesSnapshot } from '../../shared/clues-snapshot.mjs';
 export default function HistoryApp() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState('');
   const [updateNotice, setUpdateNotice] = useState('');
+  const [fallbackNotice, setFallbackNotice] = useState('');
   const current = useRef<Snapshot | null>(null);
   const inFlight = useRef<Promise<void> | null>(null);
   const mounted = useRef(false);
@@ -16,13 +18,11 @@ export default function HistoryApp() {
     const task = (async () => {
       try {
         // All visitors requesting a given generation share its cached snapshot.
-        const query = generation !== undefined ? '?generation=' + encodeURIComponent(generation || 'import') : '';
-        let response = await fetch('/history-api/current' + query, { cache: generation !== undefined ? 'default' : 'no-store', signal: AbortSignal.timeout?.(15000) });
-        if ((!response.ok || !response.headers.get('content-type')?.includes('application/json')) && !automatic) response = await fetch('/history-preview-data/snapshot.json');
-        if (!response.ok) throw new Error('Could not load saved clues.');
-        const next: Snapshot = await response.json();
-        if (!next.current?.letters || !Array.isArray(next.current.words)) throw new Error('Invalid clues snapshot.');
+        let storage: Storage | undefined;
+        try { storage = window.localStorage; } catch { /* Browser storage can be unavailable. */ }
+        const { snapshot: next, notice } = await loadCluesSnapshot({ storage, generation, allowFallback: !current.current, signal: AbortSignal.timeout(15000) });
         if (!mounted.current) return;
+        setFallbackNotice(notice);
         const previous = current.current;
         // An unchanged or temporarily cached response must not reset entries.
         if (automatic && (next.generation || null) === (previous?.generation || null)) return;
@@ -48,6 +48,7 @@ export default function HistoryApp() {
   }, []);
   if (!snapshot) return <LoadingClues error={error} onRetry={() => { setError(''); void load(); }} />;
   return <SelfServe key={snapshot.current.puzzle + ':' + snapshot.current.letters} publishedPuzzle={snapshot.current} dictionaryCount={snapshot.history.dictionaryCount} onRefresh={() => load()}
+    pageNotice={fallbackNotice ? <p role="alert" className="saved-clues-warning">{fallbackNotice}</p> : undefined}
     statistics={<Statistics snapshot={snapshot} stats={snapshot.history} />}
     sidebarExtra={<>{updateNotice && <p role="status" aria-live="polite">{updateNotice}</p>}{error && <p role="alert">{error}</p>}</>} />;
 }

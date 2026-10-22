@@ -1,4 +1,4 @@
-import { env } from '../lib/history/babble.mjs';
+import { env, productionNotifications } from '../lib/env.mjs';
 import { validBrowserId, browserField } from '../lib/browser-alias.mjs';
 const json = (body, status) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 const origins = new Set(['https://r46.me', 'https://selfserve.r46.me', 'https://selfserveclues.netlify.app']);
@@ -13,6 +13,7 @@ export default async request => {
   try { data = JSON.parse(raw); } catch { return json({ error: 'Invalid JSON' }, 400); }
   if (!validBrowserId(data?.browserId) || !['rainbow-button', 'direct'].includes(data?.source)) return json({ error: 'Invalid visit notice' }, 400);
   if (data.client !== undefined && !['expert', 'browser'].includes(data.client)) return json({ error: 'Invalid visit client' }, 400);
+  if (!productionNotifications()) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
   const webhook = env('DISCORD_EXPERT_GUIDE_WEBHOOK_URL');
   if (!webhook) return json({ error: 'Notification service is not configured' }, 503);
   try {

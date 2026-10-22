@@ -31,3 +31,4 @@
 .admin-page .validation-comparison th[scope=row] { font-weight: normal; }
 .admin-page .validation-comparison .difference { background: #fff0c2; font-weight: bold; }
 .chat-message-list{padding-left:24px}.chat-message-list li{padding:8px 10px 12px;margin:10px 0;border:1px solid #ddc991;border-radius:5px}.chat-message-list label{margin:0 0 6px}.chat-message-list small{color:#63523b}.chat-messages details{padding:12px;border:1px solid #ddc991;border-radius:5px}.chat-messages h3{margin:14px 0 8px}
+.saved-clues-warning{padding:12px;border:2px solid #9b5900;background:#fff3ca;color:#4d2d00;font-weight:600;line-height:1.5}

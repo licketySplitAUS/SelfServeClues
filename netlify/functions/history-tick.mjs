@@ -1,4 +1,4 @@
-import { env } from '../lib/history/babble.mjs';
+import { env } from '../lib/env.mjs';
 import { scheduledAction } from '../lib/history/schedule.mjs';
 
 export default async (request, context) => {

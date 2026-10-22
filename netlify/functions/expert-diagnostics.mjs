@@ -1,13 +1,17 @@
 import { anonymousAlias } from '../lib/anonymous-alias.mjs';
+import { getStore, getDeployStore } from '@netlify/blobs';
+import { diagnosticDelivery } from '../lib/diagnostic-delivery.mjs';
+import { env, productionNotifications } from '../lib/env.mjs';
 
 const events = {
   'diagnostic-test': 'Diagnostics connection test (not a user failure)',
   'startup-failed': 'Expert could not start', 'load-failed': 'Page could not load',
+  'process-failed': 'Expert main process exception',
   'load-slow': 'Page loading unusually slowly', 'load-recovered': 'Slow page finished loading',
   'renderer-crashed': 'Page renderer stopped', unresponsive: 'Page stopped responding',
   responsive: 'Page responding again', 'update-failed': 'Expert update failed',
 };
-const components = new Set(['main', 'babble', 'clues', 'resources', 'updater', 'tour']);
+const components = new Set(['main', 'babble', 'clues', 'resources', 'updater', 'tour', 'auxiliary']);
 const reasons = new Set(['exception', 'timeout', 'check', 'download', 'install', 'clean-exit', 'abnormal-exit', 'killed', 'crashed', 'oom', 'launch-failed', 'integrity-failure', 'memory-eviction', 'unknown']);
 const json = (body, status) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 const origins = new Set(['https://r46.me', 'https://selfserve.r46.me', 'https://selfserveclues.netlify.app', 'null']);
@@ -32,6 +36,9 @@ export function diagnosticMessage(data) {
   if ((Number.isInteger(data.code) && Math.abs(data.code) < 1000000) || (typeof data.code === 'string' && /^(?:ERR_[A-Z0-9_]{1,60}|E[A-Z]{2,20})$/.test(data.code))) fields.push({ name: 'Error code', value: String(data.code), inline: true });
   if (Number.isFinite(data.elapsedMs) && data.elapsedMs >= 0 && data.elapsedMs <= 86400000) fields.push({ name: 'Elapsed', value: `${(data.elapsedMs / 1000).toFixed(1)} seconds`, inline: true });
   if (version(data.targetVersion)) fields.push({ name: 'Update target', value: data.targetVersion, inline: true });
+  if (Number.isInteger(data.count) && data.count > 1 && data.count <= 9999) fields.push({ name: 'Repeated incidents', value: String(data.count), inline: true });
+  if (['Error', 'TypeError', 'RangeError', 'ReferenceError', 'SyntaxError', 'URIError', 'EvalError', 'AbortError'].includes(data.errorType)) fields.push({ name: 'Exception class', value: data.errorType, inline: true });
+  if (['main.js', 'app.js', 'pages.js', 'engine.js', 'updates.js', 'settings.js', 'tour.js', 'startup.js', 'diagnostics.js', 'local-window.js', 'page-runtime.js', 'async.js'].includes(data.source) && Number.isInteger(data.line) && data.line > 0 && data.line < 100000) fields.push({ name: 'Application location', value: `${data.source}:${data.line}`, inline: true });
   fields.push({ name: 'Occurred (UTC)', value: data.occurredAt, inline: false }, { name: 'Report ID', value: data.reportId, inline: false });
   return { username: 'Babble Expert diagnostics', allowed_mentions: { parse: [] }, embeds: [{
     title: events[data.event], color: ['responsive', 'load-recovered'].includes(data.event) ? 0x51b985 : 0xe69b38,
@@ -39,8 +46,8 @@ export function diagnosticMessage(data) {
   }] };
 }
 
-export function createHandler({ getWebhook = () => globalThis.Netlify?.env?.get('DISCORD_DIAGNOSTICS_WEBHOOK_URL') ?? process.env.DISCORD_DIAGNOSTICS_WEBHOOK_URL,
-  send = (...args) => fetch(...args) } = {}) {
+export function createHandler({ getWebhook = () => env('DISCORD_DIAGNOSTICS_WEBHOOK_URL'),
+  send = (...args) => fetch(...args), delivery } = {}) {
   return async request => {
     if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
     const origin = request.headers.get('origin');
@@ -52,14 +59,25 @@ export function createHandler({ getWebhook = () => globalThis.Netlify?.env?.get(
     try { data = JSON.parse(raw); } catch { return json({ error: 'Invalid JSON' }, 400); }
     const message = diagnosticMessage(data);
     if (!message) return json({ error: 'Invalid diagnostic' }, 400);
+    if (!productionNotifications()) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
     const webhook = getWebhook();
     if (!webhook) return json({ error: 'Diagnostics service is not configured' }, 503);
+    let claim;
     try {
+      claim = await delivery?.claim(data);
+      if (claim?.duplicate) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
+      if (claim?.busy) return json({ error: 'Diagnostic delivery is in progress; retry later.' }, 503);
       const response = await send(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(message), signal: AbortSignal.timeout(5000) });
-      if (!response.ok) return json({ error: 'Notification was rejected' }, 502);
+      if (!response.ok) { if (claim) await delivery.finish(claim, false); return json({ error: 'Notification was rejected' }, 502); }
+      if (claim) await delivery.finish(claim, true);
       return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
-    } catch { return json({ error: 'Diagnostics service is unavailable' }, 502); }
+    } catch { if (claim?.key) await delivery?.finish(claim, false).catch(() => {}); return json({ error: 'Diagnostics service is unavailable' }, 502); }
   };
 }
-export default createHandler();
+export default (request, context) => {
+  const options = { name: 'expert-diagnostic-delivery', consistency: 'strong' };
+  const production = (context?.deploy?.context || env('CONTEXT')) === 'production';
+  const store = production ? getStore(options) : getDeployStore(options);
+  return createHandler({ delivery: diagnosticDelivery(store) })(request);
+};
 export const config = { path: '/api/expert-diagnostics', rateLimit: { action: 'rate_limit', aggregateBy: ['ip', 'domain'], windowLimit: 30, windowSize: 60 } };
