@@ -97,16 +97,16 @@ test("Babble notification sends only the approved fields to Discord", async (t) 
 });
 
 // Routing keeps all unspecified events on the original webhook.
-test('installs, upgrades and session endings use dedicated channels with a fallback', async t => {
+test('installs, upgrades, startups and session endings use dedicated channels with a fallback', async t => {
   const originalFetch = globalThis.fetch;
-  const keys = ['DISCORD_WEBHOOK_URL','DISCORD_UPGRADE_WEBHOOK_URL','DISCORD_NEW_USER_WEBHOOK_URL','DISCORD_SESSION_WEBHOOK_URL'];
+  const keys = ['DISCORD_WEBHOOK_URL','DISCORD_UPGRADE_WEBHOOK_URL','DISCORD_NEW_USER_WEBHOOK_URL','DISCORD_SESSION_WEBHOOK_URL','DISCORD_STARTUP_WEBHOOK_URL'];
   const previous = Object.fromEntries(keys.map(key=>[key,process.env[key]]));const sent=[];
   t.after(()=>{globalThis.fetch=originalFetch;for(const key of keys){if(previous[key]===undefined)delete process.env[key];else process.env[key]=previous[key];}});
   process.env.DISCORD_WEBHOOK_URL='https://example.invalid/default';process.env.DISCORD_UPGRADE_WEBHOOK_URL='https://example.invalid/upgrades';process.env.DISCORD_NEW_USER_WEBHOOK_URL='https://example.invalid/new-users';
-  process.env.DISCORD_SESSION_WEBHOOK_URL='https://example.invalid/sessions';
-  globalThis.fetch=async(url)=>{sent.push(url);return new Response(null,{status:204});};
-  for(const event of ['install','upgrade','resource','option','session']) await notify(new Request('https://example.test/api/babble-notify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event,anonymousId:'BE-ABCD-EFGH'})}),{});
-  assert.deepEqual(sent,['https://example.invalid/new-users','https://example.invalid/upgrades','https://example.invalid/default','https://example.invalid/default','https://example.invalid/sessions']);
+  process.env.DISCORD_SESSION_WEBHOOK_URL='https://example.invalid/sessions';process.env.DISCORD_STARTUP_WEBHOOK_URL='https://example.invalid/startups';
+  globalThis.fetch=async(url, options)=>{sent.push(url);const message=JSON.parse(options.body);if(url==='https://example.invalid/startups'){assert.equal(message.embeds[0].title,'Babble Expert started');assert.ok(message.embeds[0].fields.some(field=>field.name==='Anonymous user'&&field.value.includes('BE-ABCD-EFGH')));}return new Response(null,{status:204});};
+  for(const event of ['install','upgrade','resource','option','startup','session']) await notify(new Request('https://example.test/api/babble-notify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event,anonymousId:'BE-ABCD-EFGH'})}),{});
+  assert.deepEqual(sent,['https://example.invalid/new-users','https://example.invalid/upgrades','https://example.invalid/default','https://example.invalid/default','https://example.invalid/startups','https://example.invalid/sessions']);
   delete process.env.DISCORD_SESSION_WEBHOOK_URL;
   await notify(new Request('https://example.test/api/babble-notify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'session'})}),{});
   assert.equal(sent.at(-1),'https://example.invalid/default');

@@ -31,7 +31,7 @@ export default async (request, context) => {
 
   let data;
   try { data = JSON.parse(raw); } catch { return json({ error: "Invalid JSON" }, 400); }
-  if (!data || !["install", "upgrade", "resource", "option", "session"].includes(data.event)) {
+  if (!data || !["install", "upgrade", "resource", "option", "startup", "session"].includes(data.event)) {
     return json({ error: "Invalid event" }, 400);
   }
 
@@ -39,6 +39,7 @@ export default async (request, context) => {
   if (!productionNotifications()) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
   const webhookUrl = (fireworks ? env('DISCORD_FIREWORKS_WEBHOOK_URL') : data.event === 'upgrade' ? env('DISCORD_UPGRADE_WEBHOOK_URL')
     : data.event === 'install' ? env('DISCORD_NEW_USER_WEBHOOK_URL')
+    : data.event === 'startup' ? env('DISCORD_STARTUP_WEBHOOK_URL')
     : data.event === 'session' ? env('DISCORD_SESSION_WEBHOOK_URL') : null) || env('DISCORD_WEBHOOK_URL');
   if (!webhookUrl) return json({ error: "Notification service is not configured" }, 503);
 
@@ -48,9 +49,10 @@ export default async (request, context) => {
     upgrade: "Babble Expert upgraded",
     resource: "Babble Expert resource opened",
     option: "Babble Expert option used",
+    startup: "Babble Expert started",
     session: "Babble Expert session ended",
   };
-  const colors = { install: 0x69e8c3, upgrade: 0xffc857, resource: 0x69c8ff, option: 0xb58cff, session: 0xff78b8 };
+  const colors = { install: 0x69e8c3, upgrade: 0xffc857, resource: 0x69c8ff, option: 0xb58cff, startup: 0x69e8c3, session: 0xff78b8 };
   const fields = [
     { name: "Anonymous user", value: anonymousAlias(data.anonymousId) + "\n" + anonymousId(data.anonymousId), inline: true },
     { name: "Version", value: clean(data.version), inline: true },
