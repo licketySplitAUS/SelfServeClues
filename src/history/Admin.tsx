@@ -3,6 +3,7 @@ import Diagnostics from './Diagnostics';
 import PublicationControl from './PublicationControl';
 import ChatAnnouncementControl from './ChatAnnouncementControl';
 import RecoveryPanel from './RecoveryPanel';
+import DiscordActivity from './DiscordActivity';
 import type { Snapshot } from './types';
 export default function Admin({ onSnapshot, snapshot }: { onSnapshot: (snapshot: Snapshot) => void; snapshot?: Snapshot }) {
   const [key, setKey] = useState(''), [busy, setBusy] = useState(false), [message, setMessage] = useState('');
@@ -27,6 +28,7 @@ export default function Admin({ onSnapshot, snapshot }: { onSnapshot: (snapshot:
   return <details className="admin" id="administration-controls" open><summary>Administration controls</summary>
     <p>The publication switch controls the public r46.me clues page. Puzzle administration below manages the saved clues and history. The key stays in this page’s memory.</p>
     <label>Preview admin key<input type="password" autoComplete="off" value={key} onChange={event => setKey(event.target.value)} /></label>
+    <DiscordActivity adminKey={key} />
     <PublicationControl adminKey={key} />
     <ChatAnnouncementControl adminKey={key} />
     <RecoveryPanel adminKey={key} />

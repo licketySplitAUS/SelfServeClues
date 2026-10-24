@@ -8,6 +8,7 @@ Start here for the system that supplies Lickety’s clues, Self Serve, the histo
 | [Backup and disaster recovery](DISASTER-RECOVERY.md) | What GitHub contains, what it does not contain, making a recovery pack, restore instructions, Netlify outages |
 | [SQL Server failover](SQL-SERVER-FAILOVER.md) | Grid/word exports, old database mappings, staging SQL, returning to the old generator |
 | [Operations](OPERATIONS.md) | Daily checks, settings, safe troubleshooting and deployment |
+| [Discord activity statistics](DISCORD-STATISTICS.md) | Read-only bot setup, reporting totals, date filters and test installations |
 | [Recovery verification record](RECOVERY-DRILL.md) | What was actually backed up and tested, and the drills still outstanding |
 | [Small daily GitHub backups](GITHUB-BACKUPS.md) | Low-usage validated puzzle checkpoints, ready-to-use private-repository workflow and recovery commands |
 

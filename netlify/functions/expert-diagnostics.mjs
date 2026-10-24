@@ -2,6 +2,7 @@ import { anonymousAlias } from '../lib/anonymous-alias.mjs';
 import { getStore, getDeployStore } from '@netlify/blobs';
 import { diagnosticDelivery } from '../lib/diagnostic-delivery.mjs';
 import { env, productionNotifications } from '../lib/env.mjs';
+import { diagnosticErrorMeaning } from '../lib/diagnostic-errors.mjs';
 
 const events = {
   'diagnostic-test': 'Diagnostics connection test (not a user failure)',
@@ -33,7 +34,10 @@ export function diagnosticMessage(data) {
   if (typeof data.osRelease === 'string' && /^[\d.]{1,32}$/.test(data.osRelease)) fields.push({ name: 'OS build', value: data.osRelease, inline: true });
   if (Number.isInteger(data.memoryMB) && data.memoryMB > 0 && data.memoryMB <= 16777216) fields.push({ name: 'Total RAM', value: `${data.memoryMB} MB`, inline: true });
   if (reasons.has(data.reason)) fields.push({ name: 'Stage / reason', value: data.reason, inline: true });
-  if ((Number.isInteger(data.code) && Math.abs(data.code) < 1000000) || (typeof data.code === 'string' && /^(?:ERR_[A-Z0-9_]{1,60}|E[A-Z]{2,20})$/.test(data.code))) fields.push({ name: 'Error code', value: String(data.code), inline: true });
+  if ((Number.isInteger(data.code) && Math.abs(data.code) < 1000000) || (typeof data.code === 'string' && /^(?:ERR_[A-Z0-9_]{1,60}|E[A-Z]{2,20})$/.test(data.code))) {
+    fields.push({ name: 'Error code', value: String(data.code), inline: true });
+    fields.push({ name: 'What it means', value: diagnosticErrorMeaning(data.event, data.code), inline: false });
+  }
   if (Number.isFinite(data.elapsedMs) && data.elapsedMs >= 0 && data.elapsedMs <= 86400000) fields.push({ name: 'Elapsed', value: `${(data.elapsedMs / 1000).toFixed(1)} seconds`, inline: true });
   if (version(data.targetVersion)) fields.push({ name: 'Update target', value: data.targetVersion, inline: true });
   if (Number.isInteger(data.count) && data.count > 1 && data.count <= 9999) fields.push({ name: 'Repeated incidents', value: String(data.count), inline: true });

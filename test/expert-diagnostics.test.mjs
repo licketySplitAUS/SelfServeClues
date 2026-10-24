@@ -50,3 +50,34 @@ test('tour failures are accepted as a distinct diagnostic component', () => {
   assert.ok(message);
   assert.equal(message.embeds[0].fields.find(field => field.name === 'Component').value, 'tour');
 });
+
+test('Discord explains DNS failures while retaining the original code', () => {
+  const fields = diagnosticMessage(report).embeds[0].fields;
+  assert.equal(fields.find(field => field.name === 'Error code').value, '-105');
+  assert.equal(fields.find(field => field.name === 'What it means').value,
+    'The website address could not be found (DNS lookup failed).\nERR_NAME_NOT_RESOLVED');
+});
+
+test('numeric and named page errors have the same meaning', () => {
+  for (const [code, name, meaning] of [
+    [-106, 'ERR_INTERNET_DISCONNECTED', /no internet connection/],
+    [-118, 'ERR_CONNECTION_TIMED_OUT', /timed out/],
+    [-201, 'ERR_CERT_DATE_INVALID', /certificate.*valid dates/],
+  ]) {
+    const explanation = value => diagnosticMessage({ ...report, code: value }).embeds[0].fields.find(field => field.name === 'What it means').value;
+    assert.equal(explanation(code), explanation(name));
+    assert.match(explanation(code), meaning);
+  }
+});
+
+test('system errors, process exit codes and unknown codes are distinguished', () => {
+  const explanation = data => diagnosticMessage({ ...report, ...data }).embeds[0].fields.find(field => field.name === 'What it means')?.value;
+  assert.match(explanation({ event: 'update-failed', code: 'ENOSPC' }), /no space left/);
+  assert.match(explanation({ event: 'renderer-crashed', code: -105 }), /process exit code/);
+  assert.doesNotMatch(explanation({ event: 'renderer-crashed', code: -105 }), /DNS/);
+  assert.match(explanation({ event: 'process-failed', code: -105 }), /No plain-English explanation/);
+  assert.match(explanation({ code: -99999 }), /No plain-English explanation/);
+  assert.match(explanation({ code: 'ERR_UNKNOWN_FUTURE_ERROR' }), /No plain-English explanation/);
+  assert.equal(explanation({ code: 'private text' }), undefined);
+  assert.equal(explanation({ code: undefined }), undefined);
+});
