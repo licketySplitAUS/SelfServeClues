@@ -81,6 +81,39 @@ test('browser/CLI download pins control and exports exactly the inventoried obje
   try { assert.equal(verifyBackup(await downloadRecovery('https://example', 'key')).count, 7); assert.equal(controlReads, 2); }
   finally { globalThis.fetch = oldFetch; }
 });
+test('paced CLI downloads preserve all records and the final control check', async () => {
+  const { backup } = await fixture(), original = globalThis.fetch, waits = [];
+  let calls = 0;
+  globalThis.fetch = async url => {
+    calls++;
+    const params = new URL(url).searchParams;
+    return Response.json(params.has('store') ? backup.records.find(row => row.store === params.get('store') && row.key === params.get('key')) : backup.inventory);
+  };
+  try {
+    const result = await downloadRecovery('https://example', 'key', () => {}, { concurrency: 2, interval: 1000, wait: async ms => { waits.push(ms); } });
+    assert.equal(verifyBackup(result).count, 7);
+    assert.equal(calls, 9);
+    assert.equal(waits.length, 8);
+    assert.ok(waits.every(ms => ms > 0));
+  } finally { globalThis.fetch = original; }
+});
+
+test('a failed worker stops the queue and waits for in-flight reads before rejecting', async () => {
+  const { backup } = await fixture(), original = globalThis.fetch;
+  let reads = 0, settled = false;
+  globalThis.fetch = async url => {
+    if (!new URL(url).searchParams.has('store')) return Response.json(backup.inventory);
+    if (++reads === 1) return Response.json({ error: 'Object changed' }, { status: 409 });
+    await new Promise(resolve => setImmediate(resolve)); settled = true;
+    return Response.json(backup.records[1]);
+  };
+  try {
+    await assert.rejects(downloadRecovery('https://example', 'key', () => {}, { concurrency: 2 }), /Object changed/);
+    assert.equal(reads, 2);
+    assert.equal(settled, true);
+  } finally { globalThis.fetch = original; }
+});
+
 test('SQL stages separate batches, escapes text, derives totals and preserves coordinates', () => {
   const output = [...sqlExport([game], { abcd: { action: 'exclude', reason: "Babble's verdict", changedAt: 'now' } }, 'batch-a')].join('');
   assert.match(output, /Lickety''s puzzle/); assert.match(output, /Babble''s verdict/);

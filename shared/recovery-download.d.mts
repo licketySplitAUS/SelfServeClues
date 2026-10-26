@@ -1,1 +1,1 @@
-export function downloadRecovery(base: string, key: string, progress?: (done: number, total: number) => void): Promise<unknown>;
+export function downloadRecovery(base: string, key: string, progress?: (done: number, total: number) => void, options?: { concurrency?: number; interval?: number; wait?: (ms: number) => Promise<void> }): Promise<unknown>;
