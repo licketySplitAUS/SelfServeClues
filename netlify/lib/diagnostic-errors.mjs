@@ -57,6 +57,17 @@ export function diagnosticErrorMeaning(event, code) {
     if (error) return `${error.message}\n${error.name}`;
   }
   if (typeof code === 'string' && systemErrors.has(code)) return systemErrors.get(code);
+  if (event === 'update-failed' && typeof code === 'string') {
+    if (pageNames.has(code)) return pageNames.get(code).message;
+    const http = code.match(/^ERR_HTTP_([45]\d\d)$/);
+    if (http) return ({ 401: 'The update service requires authorization.', 403: 'The update service refused the request; access restrictions or rate limits may apply.',
+      404: 'The requested update resource was not found.', 429: 'The update service is rate limiting requests. Try again later.',
+      503: 'The update service is temporarily unavailable.' })[http[1]] || `The update service returned HTTP ${http[1]}.`;
+    if (code === 'ERR_UPDATE_UNKNOWN') return 'The updater did not supply a recognizable technical error code.';
+    if (code === 'ERR_UPDATE_ABORTED') return 'The update request was cancelled.';
+  }
+  if (code === 'ERR_STARTUP_TIMEOUT') return 'The main window did not finish loading before the startup deadline.';
+  if (code === 'ERR_MAIN_WINDOW_LOAD') return 'The main window could not be loaded; consult the local startup log for the cause.';
   // Renderer and process exit codes use a different namespace; never interpret
   // their numeric values as Chromium network failures.
   if (event === 'renderer-crashed') return 'The page renderer stopped. This is a process exit code; see Stage / reason for more detail.';

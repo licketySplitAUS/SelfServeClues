@@ -1,8 +1,9 @@
 import { authorized } from '../lib/admin-auth.mjs';
 import { env } from '../lib/env.mjs';
 import { configuredChannels, testInstallations, reportRange, pageRange, createDiscordReader, DiscordError } from '../lib/discord-stats.mjs';
+import { resolveInstallationAlias } from '../lib/alias-registry.mjs';
 
-export function createHandler({ getEnv = env, fetchImpl = fetch, now = Date.now, authorize = authorized } = {}) {
+export function createHandler({ getEnv = env, fetchImpl = fetch, now = Date.now, authorize = authorized, resolveAlias } = {}) {
   let reader, currentToken;
   return async request => {
     const headers = { 'cache-control': 'private, no-store', 'netlify-cdn-cache-control': 'no-store' };
@@ -17,11 +18,20 @@ export function createHandler({ getEnv = env, fetchImpl = fetch, now = Date.now,
       const params = new URL(request.url).searchParams;
       const action = params.get('action') || 'start';
       if (action === 'connection') return json(await reader.connection(channels));
-      if (action === 'start') return json({ channels, testInstallations, range: reportRange(params, now()), generatedAt: new Date(now()).toISOString() });
+      if (action === 'start') {
+        const range = reportRange(params, now());
+        const tests = resolveAlias ? await Promise.all(testInstallations.map(async row => ({ ...row, name: row.name === 'Synthetic' ? row.name : await resolveAlias(row.id) }))) : testInstallations;
+        return json({ channels, testInstallations: tests, range, generatedAt: new Date(now()).toISOString() });
+      }
       if (action !== 'page') return json({ error: 'Unknown statistics action' }, 400);
       const channel = channels.find(channel => channel.id === params.get('channel'));
       if (!channel) return json({ error: 'This channel is not configured for statistics.' }, 400);
-      return json(await reader.page(channel, pageRange(params, now())));
+      const result = structuredClone(await reader.page(channel, pageRange(params, now())));
+      if (resolveAlias) for (const group of result.groups) for (const [id, actor] of Object.entries(group.installations)) {
+        const synthetic = testInstallations.find(row => row.id === id && row.name === 'Synthetic');
+        actor.name = synthetic ? synthetic.name : await resolveAlias(id);
+      }
+      return json(result);
     } catch (error) {
       if (error instanceof DiscordError) return json({ error: error.message, channelError: [403, 404].includes(error.status), retryAfter: error.retryAfter || undefined }, error.status, error.retryAfter ? { 'retry-after': String(error.retryAfter) } : {});
       // Configuration/validation errors are ours; never forward HTTP response
@@ -31,5 +41,5 @@ export function createHandler({ getEnv = env, fetchImpl = fetch, now = Date.now,
     }
   };
 }
-export default createHandler();
+export default createHandler({ resolveAlias: resolveInstallationAlias });
 export const config = { path: '/history-api/discord-stats', rateLimit: { action: 'rate_limit', aggregateBy: ['ip', 'domain'], windowLimit: 300, windowSize: 60 } };

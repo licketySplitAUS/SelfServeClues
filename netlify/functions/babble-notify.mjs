@@ -1,5 +1,6 @@
 import { env, productionNotifications } from "../lib/env.mjs";
 import { anonymousAlias } from "../lib/anonymous-alias.mjs";
+import { resolveInstallationAlias } from '../lib/alias-registry.mjs';
 
 const json = (body, status = 200) => Response.json(body, {
   status,
@@ -22,7 +23,7 @@ const duration = (value) => {
   return [hours ? `${hours}h` : "", minutes || hours ? `${minutes}m` : "", `${remainder}s`].filter(Boolean).join(" ");
 };
 
-export default async (request, context) => {
+export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), send = (...args) => fetch(...args) } = {}) => async (request, context) => {
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
   if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return json({ error: 'JSON required' }, 415);
 
@@ -42,6 +43,9 @@ export default async (request, context) => {
     : data.event === 'startup' ? env('DISCORD_STARTUP_WEBHOOK_URL')
     : data.event === 'session' ? env('DISCORD_SESSION_WEBHOOK_URL') : null) || env('DISCORD_WEBHOOK_URL');
   if (!webhookUrl) return json({ error: "Notification service is not configured" }, 503);
+  let alias;
+  try { alias = await resolveAlias(data.anonymousId); }
+  catch { return json({ error: 'Installation alias is temporarily unavailable.' }, 503); }
 
   const country = clean(context.geo?.country?.name || context.geo?.country?.code || "Unknown", 60);
   const titles = {
@@ -54,7 +58,7 @@ export default async (request, context) => {
   };
   const colors = { install: 0x69e8c3, upgrade: 0xffc857, resource: 0x69c8ff, option: 0xb58cff, startup: 0x69e8c3, session: 0xff78b8 };
   const fields = [
-    { name: "Anonymous user", value: anonymousAlias(data.anonymousId) + "\n" + anonymousId(data.anonymousId), inline: true },
+    { name: "Anonymous user", value: alias + "\n" + anonymousId(data.anonymousId), inline: true },
     { name: "Version", value: clean(data.version), inline: true },
     { name: "Platform", value: `${clean(data.platform)} / ${clean(data.architecture)}`, inline: true },
     { name: "Country", value: country, inline: true },
@@ -86,7 +90,7 @@ export default async (request, context) => {
 
   let discordResponse;
   try {
-    discordResponse = await fetch(webhookUrl, {
+    discordResponse = await send(webhookUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(message),
@@ -100,3 +104,4 @@ export default async (request, context) => {
 };
 
 export const config = { path: "/api/babble-notify", rateLimit: { action: 'rate_limit', aggregateBy: ['ip', 'domain'], windowLimit: 60, windowSize: 60 } };
+export default createHandler({ resolveAlias: resolveInstallationAlias });

@@ -10,16 +10,28 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const deadline = setTimeout(() => { console.error('Discord UI check timed out'); app.exit(1); }, 40000);
 app.whenReady().then(async () => {
   const { previewServer } = await import('./serve.mjs');
-  const { summarizeMessages, reportingChannels, testInstallations } = await import('../../netlify/lib/discord-stats.mjs');
+  const { summarizeMessages, reportingChannels, testInstallations: knownTestInstallations } = await import('../../netlify/lib/discord-stats.mjs');
+  const { createAliasRegistry } = await import('../../netlify/lib/alias-registry.mjs');
+  const reservations = new Map();
+  const resolveAlias = createAliasRegistry({
+    async get(key) { return reservations.get(key) || null; },
+    async setJSON(key, value) { if (reservations.has(key)) return { modified: false }; reservations.set(key, value); return { modified: true }; },
+  });
+  const testInstallations = await Promise.all(knownTestInstallations.map(async row => ({ ...row, name: row.name === 'Synthetic' ? row.name : await resolveAlias(row.id) })));
   const channels = reportingChannels.slice(0, 2), now = Date.now();
   const message = (title, fields) => ({ timestamp: new Date(now - 10000).toISOString(), embeds: [{ title, fields: Object.entries(fields).map(([name, value]) => ({ name, value })) }] });
   const first = summarizeMessages([
     message('Babble Expert started', { 'Anonymous user': 'Joshua\nBE-MBQX-QRM7' }),
     message('Babble Expert started', { 'Anonymous user': 'Kevin\nBE-JQ9R-MUWL' }),
-    message('Babble Expert session ended', { 'Anonymous user': 'Other\nBE-ABCD-EFGH', 'Time in program': '1h 2m 3s', Version: '3.2.12.0', Platform: 'win32 / x64' }),
-    message('Page could not load', { 'Anonymous user': 'Other\nBE-ABCD-EFGH', Component: 'clues', 'Error code': '-105', 'Repeated incidents': '3' }),
+    message('Babble Expert session ended', { 'Anonymous user': 'Other\nBE-9D3P-CWUT', 'Time in program': '1h 2m 3s', Version: '3.2.12.0', Platform: 'win32 / x64' }),
+    message('Page could not load', { 'Anonymous user': 'Other\nBE-9D3P-CWUT', Component: 'clues', 'Error code': '-105', 'Repeated incidents': '3', Version: '3.2.11.0', 'Occurred (UTC)': new Date(now - 20000).toISOString() }),
   ], now - 86400000, now);
-  const second = summarizeMessages([message('Babble Expert started', { 'Anonymous user': 'Other\nBE-ABCD-EFGH' })], now - 86400000, now);
+  const second = summarizeMessages([
+    { ...message('Babble Expert started', { 'Anonymous user': 'Other\nBE-9D3P-CWUT', Version: '3.3.0.0' }), timestamp: new Date(now - 5000).toISOString() },
+    message('Page could not load', { 'Anonymous user': 'Other\nBE-9D3P-CWUT', Component: 'clues', 'Error code': '-105', 'Repeated incidents': '3', Version: '3.2.11.0', 'Occurred (UTC)': new Date(now - 15000).toISOString() }),
+  ], now - 86400000, now);
+  for (const summary of [first, second]) for (const group of summary.groups) for (const [id, actor] of Object.entries(group.installations)) actor.name = await resolveAlias(id);
+  const playerAlias = await resolveAlias('BE-9D3P-CWUT');
   let mode = 'normal', pages = 0;
   const server = previewServer(), staticRequest = server.listeners('request')[0];
   server.removeAllListeners('request');
@@ -51,11 +63,24 @@ app.whenReady().then(async () => {
     await run(`Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(document.querySelector('input[type=password]'),'ui-test-key'); document.querySelector('input[type=password]').dispatchEvent(new Event('input',{bubbles:true}));`);
     await click('Check bot connection'); await until(`document.querySelector('.discord-activity').textContent.includes('History readable')`);
     await click('Generate statistics'); await until(`document.querySelector('.discord-activity [role=status]').textContent==='Report complete.'`);
-    assert.equal(await metric('Discord posts'), '3'); assert.equal(await metric('Expert installations'), '1'); assert.equal(await metric('Total session time'), '1h 2m 3s');
+    assert.ok(await run(`document.querySelector('.discord-activity').textContent.includes('Joshua (PC)')`), 'Known test PC retains its first name');
+    assert.notEqual(playerAlias, 'Joshua');
+    assert.equal(await run(`Array.from(document.querySelectorAll('.discord-activity details')).find(el=>el.querySelector('summary')?.textContent==='Installations by report volume').querySelector('tbody th').firstChild.textContent`), playerAlias, 'Colliding installation has its own first name with no code suffix');
+    assert.equal(await metric('Discord posts'), '4'); assert.equal(await metric('Expert installations'), '1'); assert.equal(await metric('Total reported app-open time'), '1h 2m 3s');
+    assert.ok(await run(`Array.from(document.querySelectorAll('.discord-activity section')).find(el=>el.querySelector('h3')?.textContent==='Installation versions').textContent.includes('3.3.01')`), 'Latest version survives merging pages with older reports');
+    assert.ok(await run(`document.querySelector('.discord-activity').textContent.includes('2 problem reports / 6 reported problem occurrences')`));
+    assert.ok(await run(`document.querySelector('.discord-activity').textContent.includes('Problem reports identify 1 affected installations')`));
+    assert.ok(await run(`document.querySelector('.discord-activity').textContent.includes('2 posts excluded from the history scanned')`));
+    assert.deepEqual(await run(`Array.from(Array.from(document.querySelectorAll('.discord-activity details')).find(el=>el.querySelector('summary')?.textContent==='Installations by report volume').querySelector('tbody tr').querySelectorAll('td')).map(el=>el.textContent.replace(/Version observed:.*/,''))`), ['3.3.0', '1', '1h 2m 3s', '4'], 'Per-installation sessions survive merging a newer version from another page');
+    assert.deepEqual(await run(`Array.from(Array.from(document.querySelectorAll('.discord-activity details')).find(el=>el.querySelector('summary')?.textContent.startsWith('Diagnostics')).querySelector('tbody tr').querySelectorAll('td')).map(el=>el.textContent)`), ['problem', '1', '2', '6'], 'Affected installations are unique across pages');
+    assert.deepEqual(await run(`Array.from(Array.from(document.querySelectorAll('.discord-activity details')).find(el=>el.querySelector('summary')?.textContent==='Hours posts arrived (Sydney)').querySelectorAll('tbody th')).map(el=>el.textContent)`), Array.from({length:24},(_,i)=>String(i).padStart(2,'0')+':00'));
+    assert.ok(await run(`document.querySelector('.discord-activity').textContent.includes('Occurred:') && document.querySelector('.discord-activity').textContent.includes('Last received:')`));
+    assert.deepEqual(await run(`Array.from(Array.from(document.querySelectorAll('.discord-activity section')).find(el=>el.querySelector('h3')?.textContent==='Versions').querySelectorAll('tbody th')).map(el=>el.textContent)`), ['3.3.0', '3.2.12', '3.2.11']);
     await selectAudience('tests'); await until(`document.querySelector('.discord-metrics').textContent.includes('Discord posts2')`);
     assert.equal(await metric('Expert installations'), '2');
-    await selectAudience('all'); await until(`document.querySelector('.discord-metrics').textContent.includes('Discord posts5')`);
+    await selectAudience('all'); await until(`document.querySelector('.discord-metrics').textContent.includes('Discord posts6')`);
     assert.equal(await metric('Expert installations'), '3');
+    assert.ok(await run(`document.querySelector('.discord-activity').textContent.includes('0 posts excluded from the history scanned')`));
     await run(`for(const details of document.querySelectorAll('.discord-activity details')) details.open=true; document.querySelector('.discord-activity').scrollIntoView();`);
     assert.ok(await run(`document.querySelector('.discord-activity').textContent.includes('DNS lookup failed')`));
     assert.equal(await run(`document.documentElement.scrollWidth<=innerWidth`), true);
@@ -67,7 +92,7 @@ app.whenReady().then(async () => {
     await fs.writeFile(path.join(out, 'mobile.png'), (await win.webContents.capturePage()).toPNG());
     mode = 'rate'; await click('Generate statistics'); await until(`document.querySelector('.discord-activity [role=status]').textContent.includes('resume automatically')`);
     await until(`document.querySelector('.discord-activity [role=status]').textContent==='Report complete.'`);
-    assert.equal(await metric('Discord posts'), '9', 'Retrying a rate-limited page does not duplicate its counts');
+    assert.equal(await metric('Discord posts'), '10', 'Retrying a rate-limited page does not duplicate its counts');
     mode = 'stop'; await click('Generate statistics'); await until(`document.querySelector('.discord-metrics').textContent.includes('Discord posts4')`);
     await click('Stop'); await until(`document.querySelector('.discord-activity [role=status]').textContent.startsWith('Stopped.')`);
     assert.ok(await run(`document.querySelector('.discord-activity').textContent.includes('Partial report')`));

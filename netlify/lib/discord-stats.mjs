@@ -8,7 +8,8 @@ export const reportingChannels = Object.freeze([
   ['startedbabbleexpert', '1562747715178332221'], ['general', '1560784971398910105'],
 ].map(([name, id]) => ({ name, id })));
 export const testInstallations = Object.freeze([
-  { id: 'BE-MBQX-QRM7', name: 'Joshua', device: 'PC' }, { id: 'BE-JQ9R-MUWL', name: 'Kevin', device: 'MacBook' },
+  { id: 'BE-MBQX-QRM7', name: anonymousAlias('BE-MBQX-QRM7'), device: 'PC' }, { id: 'BE-JQ9R-MUWL', name: anonymousAlias('BE-JQ9R-MUWL'), device: 'MacBook' },
+  { id: 'BE-TEST-TEST', name: 'Synthetic', device: 'Connection test' }, { id: 'BE-TEST-2ABC', name: 'Synthetic', device: 'Client test' },
 ]);
 const snowflake = /^\d{17,20}$/;
 const epoch = 1420070400000;
@@ -71,6 +72,21 @@ const events = [
   [/^(?:Page could not load|Page loading unusually slowly|Slow page finished loading|Page renderer stopped|Page stopped responding|Page responding again|Expert could not start|Expert main process exception|Expert update failed|Diagnostics connection test)/i, 'Diagnostics'],
 ];
 function eventFor(title) { return events.find(([pattern]) => pattern.test(title))?.[1]; }
+function normalizedVersion(value) {
+  const text = String(value || '').trim();
+  if (!/^\d+(?:\.\d+){1,3}$/.test(text)) return '';
+  const parts = text.split('.').map(Number);
+  while (parts.length < 3) parts.push(0);
+  if (parts.length === 4 && parts[3] === 0) parts.pop();
+  return parts.join('.');
+}
+function normalizedPlatform(value) {
+  const text = clean(value);
+  const match = text.match(/^(windows|win32|darwin|macos|linux)\s*[/·]\s*(x64|arm64|ia32|arm)$/i);
+  if (!match) return text;
+  return `${({ windows: 'Windows', win32: 'Windows', darwin: 'macOS', macos: 'macOS', linux: 'Linux' })[match[1].toLowerCase()]} / ${match[2].toLowerCase()}`;
+}
+const testFeatures = new Set(['Babble Expert client option test', 'Babble Expert client resource test', 'Resources menu test']);
 function durationSeconds(value) {
   if (typeof value !== 'string' || !/^\s*(?:\d+\s*[hms]\s*)+$/i.test(value)) return null;
   let seconds = 0;
@@ -95,27 +111,45 @@ export function summarizeMessages(messages, from, to) {
     const title = clean(embed.title), event = eventFor(title);
     const fields = new Map((Array.isArray(embed.fields) ? embed.fields : []).map(field => [field.name, String(field.value || '')]));
     const id = fields.get('Anonymous user')?.match(/\bBE-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}\b/)?.[0];
+    const occurred = Date.parse(fields.get('Occurred (UTC)'));
+    const observed = event === 'Diagnostics' && occurred >= epoch && occurred <= time ? occurred : time;
+    const observedAt = new Date(observed).toISOString();
     const browser = fields.get('Anonymous browser')?.match(/\bCV-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\b/)?.[0];
-    const cohort = id ? testInstallations.some(test => test.id === id) ? 'test' : 'regular' : 'unattributed';
+    const synthetic = /^Diagnostics connection test/i.test(title) || testFeatures.has(fields.get('Option')) || testFeatures.has(fields.get('Resource'))
+      || fields.get('Platform') === 'Connection test - not a player launch / test';
+    const cohort = synthetic || testInstallations.some(test => test.id === id) ? 'test' : id ? 'regular' : 'unattributed';
     if (!groups.has(cohort)) { groups.set(cohort, group(cohort)); browserSets.set(cohort, new Set()); }
     const row = groups.get(cohort);
     row.posts++; if (event) row.reports++;
     add(row.events, event || 'Other posts'); add(row.days, sydneyDate(time)); row.hours[Number(hourFormat.format(time))]++;
     if (id) {
-      if (!Object.hasOwn(row.installations, id)) row.installations[id] = { name: anonymousAlias(id), posts: 0 };
+      if (!Object.hasOwn(row.installations, id)) row.installations[id] = { name: anonymousAlias(id), posts: 0, sessions: 0, sessionSeconds: 0, lastSeenAt: observedAt };
       row.installations[id].posts++;
+      if (observedAt > row.installations[id].lastSeenAt) row.installations[id].lastSeenAt = observedAt;
     }
     if (browser) browserSets.get(cohort).add(browser);
     if (message.webhook_id && !message.content && !embeds.length) hiddenReports++;
     if (!event) continue;
-    const version = fields.get('Version') || fields.get('Babble Expert version');
-    if (version && /^\d+(?:\.\d+){1,3}$/.test(version.trim())) add(row.versions, version.trim());
-    add(row.platforms, clean(fields.get('Platform'))); add(row.countries, clean(fields.get('Country')));
+    const version = normalizedVersion(fields.get('Version') || fields.get('Babble Expert version'));
+    if (version) {
+      add(row.versions, version);
+      if (id) {
+        const actor = row.installations[id];
+        // Queued diagnostics can arrive days later, carrying an older version.
+        if (!actor.versionAt || observed > Date.parse(actor.versionAt)) {
+          actor.latestVersion = version; actor.versionAt = observedAt;
+        }
+      }
+    }
+    add(row.platforms, normalizedPlatform(fields.get('Platform'))); add(row.countries, clean(fields.get('Country')));
     const feature = fields.get('Resource') || fields.get('Option');
     if (feature) add(row.features, `${event}: ${clean(feature, 80)}`);
     if (event === 'Sessions') {
       const seconds = durationSeconds(fields.get('Time in program'));
-      if (seconds !== null) { row.sessionSeconds += seconds; row.measuredSessions++; }
+      if (seconds !== null) {
+        row.sessionSeconds += seconds; row.measuredSessions++;
+        if (id) { row.installations[id].sessionSeconds += seconds; row.installations[id].sessions++; }
+      }
     }
     if (event === 'Diagnostics') {
       const incidents = Math.min(9999, Math.max(1, Number.parseInt(fields.get('Repeated incidents'), 10) || 1));
@@ -123,10 +157,19 @@ export function summarizeMessages(messages, from, to) {
       const rawCode = fields.get('Error code')?.trim();
       const code = rawCode && /^-?\d+$/.test(rawCode) ? Number(rawCode) : rawCode;
       const component = clean(fields.get('Component')) || 'Unknown component';
-      const key = `${title} · ${component}${rawCode ? ' · ' + clean(rawCode, 65) : ''}`;
-      const errorEvent = title === 'Page could not load' ? 'load-failed' : title === 'Page renderer stopped' ? 'renderer-crashed' : 'unknown';
-      if (!Object.hasOwn(row.errors, key)) row.errors[key] = { count: 0, incidents: 0, meaning: rawCode ? diagnosticErrorMeaning(errorEvent, code).split('\n')[0] : title };
-      row.errors[key].count++; row.errors[key].incidents += incidents;
+      const reason = fields.get('Stage / reason');
+      const safeReason = ['exception', 'timeout', 'check', 'download', 'install', 'clean-exit', 'abnormal-exit', 'killed', 'crashed', 'oom', 'launch-failed', 'integrity-failure', 'memory-eviction', 'unknown'].includes(reason) ? reason : '';
+      const key = `${title} · ${component}${version ? ' · v' + version : ''}${safeReason ? ' · ' + safeReason : ''}${rawCode ? ' · ' + clean(rawCode, 65) : ''}`;
+      const errorEvent = ({ 'Page could not load': 'load-failed', 'Page renderer stopped': 'renderer-crashed', 'Expert update failed': 'update-failed', 'Expert could not start': 'startup-failed' })[title] || 'unknown';
+      const kind = /^Diagnostics connection test/i.test(title) ? 'test' : /^(?:Page responding again|Slow page finished loading)/i.test(title) ? 'recovery' : 'problem';
+      if (!Object.hasOwn(row.errors, key)) row.errors[key] = { count: 0, incidents: 0, kind, installations: [], firstOccurredAt: observedAt, lastOccurredAt: observedAt, lastReceivedAt: new Date(time).toISOString(),
+        meaning: rawCode ? diagnosticErrorMeaning(errorEvent, code).split('\n')[0] : kind === 'recovery' ? 'Recovery notice; not a new failure.' : kind === 'test' ? 'Synthetic connection test.' : 'No error code was supplied.' };
+      const error = row.errors[key];
+      error.count++; error.incidents += incidents;
+      if (id && !error.installations.includes(id)) error.installations.push(id);
+      if (observedAt < error.firstOccurredAt) error.firstOccurredAt = observedAt;
+      if (observedAt > error.lastOccurredAt) error.lastOccurredAt = observedAt;
+      if (new Date(time).toISOString() > error.lastReceivedAt) error.lastReceivedAt = new Date(time).toISOString();
     }
   }
   for (const [cohort, row] of groups) row.browsers = [...browserSets.get(cohort)];

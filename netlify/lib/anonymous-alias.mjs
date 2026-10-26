@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
 
-// Version 1: keep this ordered list and hash rule stable so aliases never change.
-// First names are memorable labels; the original installation code stays unique.
-const FIRST_NAMES = Object.freeze(`
+// Legacy preferred names only. Production assignments use alias-registry.mjs.
+export const FIRST_NAMES = Object.freeze(`
 Aaron Adam Adrian Alan Albert Alex Alice Amanda Amber Amy Andrew Angela
 Anna Anthony Arthur Audrey Austin Barbara Benjamin Beth Brandon Brian Bridget Bruce
 Caleb Cameron Carl Caroline Catherine Charles Charlotte Chloe Christopher Claire Clara Colin

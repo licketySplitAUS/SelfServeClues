@@ -1,4 +1,5 @@
 import { anonymousAlias } from '../lib/anonymous-alias.mjs';
+import { resolveInstallationAlias } from '../lib/alias-registry.mjs';
 import { getStore, getDeployStore } from '@netlify/blobs';
 import { diagnosticDelivery } from '../lib/diagnostic-delivery.mjs';
 import { env, productionNotifications } from '../lib/env.mjs';
@@ -51,7 +52,7 @@ export function diagnosticMessage(data) {
 }
 
 export function createHandler({ getWebhook = () => env('DISCORD_DIAGNOSTICS_WEBHOOK_URL'),
-  send = (...args) => fetch(...args), delivery } = {}) {
+  send = (...args) => fetch(...args), delivery, resolveAlias = async id => anonymousAlias(id) } = {}) {
   return async request => {
     if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
     const origin = request.headers.get('origin');
@@ -71,6 +72,7 @@ export function createHandler({ getWebhook = () => env('DISCORD_DIAGNOSTICS_WEBH
       claim = await delivery?.claim(data);
       if (claim?.duplicate) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
       if (claim?.busy) return json({ error: 'Diagnostic delivery is in progress; retry later.' }, 503);
+      message.embeds[0].fields[0].value = `${await resolveAlias(data.anonymousId)}\n${data.anonymousId}`;
       const response = await send(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(message), signal: AbortSignal.timeout(5000) });
       if (!response.ok) { if (claim) await delivery.finish(claim, false); return json({ error: 'Notification was rejected' }, 502); }
       if (claim) await delivery.finish(claim, true);
@@ -82,6 +84,6 @@ export default (request, context) => {
   const options = { name: 'expert-diagnostic-delivery', consistency: 'strong' };
   const production = (context?.deploy?.context || env('CONTEXT')) === 'production';
   const store = production ? getStore(options) : getDeployStore(options);
-  return createHandler({ delivery: diagnosticDelivery(store) })(request);
+  return createHandler({ delivery: diagnosticDelivery(store), resolveAlias: resolveInstallationAlias })(request);
 };
 export const config = { path: '/api/expert-diagnostics', rateLimit: { action: 'rate_limit', aggregateBy: ['ip', 'domain'], windowLimit: 30, windowSize: 60 } };

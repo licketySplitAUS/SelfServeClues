@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { configuredChannels, reportingChannels, testInstallations, reportRange, pageRange, summarizeMessages, createDiscordReader } from '../netlify/lib/discord-stats.mjs';
 import { createHandler } from '../netlify/functions/discord-stats.mjs';
+import { diagnosticErrorMeaning } from '../netlify/lib/diagnostic-errors.mjs';
 
 const now = Date.parse('2026-10-24T03:00:00Z');
 const from = now - 86400000, to = now;
@@ -43,12 +44,93 @@ test('exact installation IDs segregate tests; names, private text and excluded d
   ], from, to);
   const tests = data.groups.find(group => group.cohort === 'test'), regular = data.groups.find(group => group.cohort === 'regular'), other = data.groups.find(group => group.cohort === 'unattributed');
   assert.equal(tests.posts, 2); assert.equal(tests.sessionSeconds, 3723); assert.equal(tests.measuredSessions, 1);
-  assert.equal(tests.versions['3.2.12.0'], 1); assert.equal(tests.countries.Australia, 1);
+  assert.equal(tests.versions['3.2.12'], 1); assert.equal(tests.countries.Australia, 1);
   assert.equal(regular.posts, 1); assert.equal(other.posts, 3); assert.equal(other.reports, 2);
   assert.deepEqual(other.browsers, ['CV-12345678-1234-4234-8234-123456789abc']);
   assert.equal(other.events['Other posts'], 1);
   assert.doesNotMatch(JSON.stringify(data), /private|@email|description|content/);
-  assert.deepEqual(testInstallations.map(row => row.id), ['BE-MBQX-QRM7', 'BE-JQ9R-MUWL']);
+  assert.deepEqual(testInstallations.map(row => row.id), ['BE-MBQX-QRM7', 'BE-JQ9R-MUWL', 'BE-TEST-TEST', 'BE-TEST-2ABC']);
+});
+
+test('equivalent versions and platforms combine, while delayed diagnostics do not downgrade the latest version', () => {
+  const user = { 'Anonymous user': 'Alias\nBE-ABCD-EFGH' };
+  const messages = [
+    post('Babble Expert started', { ...user, Version: '3.3.0.0', Platform: 'win32 / x64' }, now - 5000),
+    post('Page could not load', { ...user, Version: '3.2.11.0', Platform: 'Windows · x64', Component: 'clues', 'Occurred (UTC)': new Date(now - 20000).toISOString() }, now - 1000),
+    post('Babble Expert session ended', { ...user, Version: '3.2.11', Platform: 'win32 · x64', 'Time in program': '1h 0m 0s' }, now - 10000),
+    post('Babble Expert started', { ...user, Version: '3.3.0.1', Platform: 'darwin / arm64' }, now - 30000),
+  ];
+  for (const input of [messages, [...messages].reverse()]) {
+    const row = summarizeMessages(input, from, to).groups[0];
+    assert.deepEqual(row.versions, { '3.3.0': 1, '3.2.11': 2, '3.3.0.1': 1 });
+    assert.equal(row.platforms['Windows / x64'], 3);
+    assert.equal(row.platforms['macOS / arm64'], 1);
+    assert.equal(row.installations['BE-ABCD-EFGH'].latestVersion, '3.3.0');
+    assert.equal(row.installations['BE-ABCD-EFGH'].versionAt, new Date(now - 5000).toISOString());
+    assert.equal(row.installations['BE-ABCD-EFGH'].lastSeenAt, new Date(now - 5000).toISOString());
+    assert.equal(row.installations['BE-ABCD-EFGH'].sessions, 1);
+    assert.equal(row.installations['BE-ABCD-EFGH'].sessionSeconds, 3600);
+  }
+});
+
+test('diagnostics separate versions and stages, deduplicate affected IDs, and preserve event and delivery dates', () => {
+  const fields = { 'Anonymous user': 'Alias\nBE-ABCD-EFGH', Component: 'updater', Version: '3.3.0.0', 'Stage / reason': 'download', 'Error code': 'ERR_HTTP_503' };
+  const messages = [
+    post('Expert update failed', { ...fields, 'Occurred (UTC)': new Date(now - 30000).toISOString(), 'Repeated incidents': '2' }, now - 3000),
+    post('Expert update failed', { ...fields, 'Anonymous user': 'Other\nBE-BCDE-FGHJ', 'Occurred (UTC)': new Date(now - 20000).toISOString() }, now - 2000),
+    post('Expert update failed', { ...fields, 'Occurred (UTC)': new Date(now - 10000).toISOString() }, now - 1000),
+    post('Expert update failed', { ...fields, Version: '3.2.12', 'Stage / reason': 'check' }),
+    post('Expert update failed', { ...fields, 'Stage / reason': 'install' }),
+    post('Expert update failed', { ...fields, 'Stage / reason': 'private exception contents' }),
+  ];
+  for (const input of [messages, [...messages].reverse()]) {
+    const row = summarizeMessages(input, from, to).groups[0];
+    const error = row.errors['Expert update failed · updater · v3.3.0 · download · ERR_HTTP_503'];
+    assert.equal(Object.keys(row.errors).length, 4);
+    assert.deepEqual([error.count, error.incidents, error.installations.length], [3, 4, 2]);
+    assert.equal(error.firstOccurredAt, new Date(now - 30000).toISOString());
+    assert.equal(error.lastOccurredAt, new Date(now - 10000).toISOString());
+    assert.equal(error.lastReceivedAt, new Date(now - 1000).toISOString());
+    assert.match(error.meaning, /temporarily unavailable/);
+    assert.doesNotMatch(JSON.stringify(row), /private exception/);
+  }
+});
+
+test('updater and startup error explanations support the next client release without confusing renderer exit codes', () => {
+  assert.match(diagnosticErrorMeaning('update-failed', 'ERR_HTTP_429'), /rate limiting/);
+  assert.match(diagnosticErrorMeaning('update-failed', 'ERR_HTTP_502'), /HTTP 502/);
+  assert.match(diagnosticErrorMeaning('update-failed', 'ERR_NAME_NOT_RESOLVED'), /DNS/);
+  assert.match(diagnosticErrorMeaning('startup-failed', 'ERR_STARTUP_TIMEOUT'), /startup deadline/);
+  assert.match(diagnosticErrorMeaning('update-failed', 'ERR_UPDATE_UNKNOWN'), /recognizable technical error/);
+  assert.match(diagnosticErrorMeaning('renderer-crashed', -105), /process exit code/);
+});
+
+test('synthetic reports are tests without filtering a real installation just because its alias is Joshua', () => {
+  const data = summarizeMessages([
+    post('Babble Expert started', { 'Anonymous user': 'Hannah\nBE-TEST-TEST' }),
+    post('Babble Expert started', { 'Anonymous user': 'Charles\nBE-TEST-2ABC' }),
+    post('Diagnostics connection test (not a user failure)', { Component: 'main' }),
+    post('Babble Expert option used', { Option: 'Babble Expert client option test' }),
+    post('Babble Expert resource opened', { Resource: 'Resources menu test' }),
+    post('Babble Expert started', { 'Anonymous user': 'Joshua\nBE-9D3P-CWUT' }),
+  ], from, to);
+  assert.equal(data.groups.find(row => row.cohort === 'test').posts, 5);
+  assert.equal(data.groups.find(row => row.cohort === 'regular').posts, 1);
+  assert.equal(data.groups.find(row => row.cohort === 'regular').installations['BE-9D3P-CWUT'].name, 'Joshua');
+  assert.equal(testInstallations.find(row => row.id === 'BE-MBQX-QRM7').name, 'Joshua');
+});
+
+test('diagnostics label recoveries and connection tests separately from problem reports', () => {
+  const data = summarizeMessages([
+    post('Page stopped responding', { Component: 'clues' }),
+    post('Page responding again', { Component: 'clues' }),
+    post('Slow page finished loading', { Component: 'resources' }),
+    post('Diagnostics connection test (not a user failure)', { Component: 'main' }),
+  ], from, to);
+  const errors = data.groups.flatMap(row => Object.values(row.errors));
+  assert.equal(errors.filter(row => row.kind === 'problem').length, 1);
+  assert.equal(errors.filter(row => row.kind === 'recovery').length, 2);
+  assert.equal(errors.filter(row => row.kind === 'test').length, 1);
 });
 
 test('diagnostic report and repeated-incident counts are distinct, with readable code meanings', () => {

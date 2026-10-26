@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import notify from "../netlify/functions/babble-notify.mjs";
+import { createHandler } from "../netlify/functions/babble-notify.mjs";
+const notify = createHandler();
 
 test("Babble notification sends only the approved fields to Discord", async (t) => {
   const originalFetch = globalThis.fetch;
