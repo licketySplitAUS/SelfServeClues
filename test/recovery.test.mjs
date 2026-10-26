@@ -42,7 +42,8 @@ test('backup authenticates before accessing storage and refuses nonproduction', 
     const denied = await handler(new Request('https://example/history-api/recovery'), {});
     assert.equal(denied.status, 403); assert.equal(denied.headers.get('cache-control'), 'no-store');
     assert.equal((await handler(new Request('https://example/history-api/recovery', { headers: { 'x-admin-key': 'test-admin' } }), { deploy: { context: 'deploy-preview' } })).status, 403);
-    assert.equal((await handler(new Request('https://example/history-api/recovery', { method: 'POST' }), {})).status, 405);
+    assert.equal((await handler(new Request('https://example/history-api/recovery', { method: 'POST' }), {})).status, 403);
+    assert.equal((await handler(new Request('https://example/history-api/recovery', { method: 'DELETE' }), {})).status, 405);
   } finally { if (prior == null) delete process.env.HISTORY_PREVIEW_ADMIN_KEY; else process.env.HISTORY_PREVIEW_ADMIN_KEY = prior; }
 });
 test('complete backup verifies checksums, inventory and published references', async () => {

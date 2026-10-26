@@ -25,12 +25,15 @@ async function backup() {
   if (!/^https:\/\//.test(origin)) throw new Error('Use an HTTPS origin.');
   const key = process.env.HISTORY_PREVIEW_ADMIN_KEY || (option('key-file') && (await fs.readFile(option('key-file'), 'utf8')).trim());
   if (!key) throw new Error('Set HISTORY_PREVIEW_ADMIN_KEY or supply --key-file (never put the key in arguments).');
-  const data = await downloadRecovery(origin.replace(/\/$/, ''), key, (done, total) => { if (done % 25 === 0 || done === total) process.stderr.write(`Backup ${done}/${total}\n`); });
+  let requests = 0;
+  const data = await downloadRecovery(origin.replace(/\/$/, ''), key, (done, total) => { if (done % 25 === 0 || done === total) process.stderr.write(`Backup ${done}/${total}\n`); },
+    { concurrency: Number(option('concurrency', 2)), interval: Number(option('interval', 100)), onRequest: () => requests++ });
   const result = verifyBackup(data);
   const output = option('out');
   if (!output) throw new Error('Specify --out <runtime.json.gz>.');
   await exclusive(output, gzipSync(JSON.stringify(data), { level: 9 }));
   console.log(`Verified ${result.count} objects; saved ${output}. Secret values are excluded.`);
+  console.log(`Recovery HTTP requests: ${requests} (including inventory, control check and retries).`);
 }
 function* allGames(backup, baseline) {
   const state = verifyBackup(backup).state;
@@ -144,4 +147,4 @@ async function main() {
   }
   throw new Error('Unknown command.');
 }
-main().catch(error => { console.error(error.message); process.exitCode = 1; });
+main().catch(error => { console.error(error.message); if (error.cause) console.error('Connection cause:', error.cause.code || error.cause.name, error.cause.message); process.exitCode = 1; });

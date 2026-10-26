@@ -1,5 +1,9 @@
 # Backup and disaster recovery
 
+Runtime backups negotiate a read-only batch protocol with the recovery endpoint. A batch requests at most 100 inventoried objects; the server reads at most four objects concurrently per invocation and caps each response's size. Large responses return a verified prefix and the client requests the remaining objects. CLI backups use two concurrent batches, bounded retries and request pacing. The final control-object check, per-object ETags and SHA-256 checksums, full inventory validation and isolated restore rehearsal remain in place. A changed/missing object fails the backup rather than silently omitting it.
+
+At 2,672 objects, a normal backup uses 29 recovery HTTP requests (one inventory, 27 batches, one final control check), plus the separate puzzle checkpoint and status calls. Storage still reads each object; batching reduces function invocations and HTTP overhead, not the underlying storage reads. CLI logs include actual recovery HTTP attempts including retries. The endpoint retains single-record GET compatibility for older clients; updated clients use batches when the server advertises protocol version 1. POST on this endpoint only reads backup objects and never modifies production storage.
+
 [Documentation home](README.md) · [Architecture](ARCHITECTURE.md) · [SQL Server failover](SQL-SERVER-FAILOVER.md)
 
 ## What position are we in?
