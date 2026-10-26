@@ -1,9 +1,9 @@
 // Browser and Node use the same read-only protocol. No credentials in URLs.
+import { recoveryRequest } from './recovery-request.mjs';
+
 export async function downloadRecovery(base, key, progress = () => {}) {
   const get = async params => {
-    const response = await fetch(`${base}/history-api/recovery${params ? '?' + new URLSearchParams(params) : ''}`, { headers: { 'x-admin-key': key }, cache: 'no-store', signal: AbortSignal.timeout(60000) });
-    if (!response.ok) throw new Error((await response.json()).error || `Backup failed (${response.status}).`);
-    return response.json();
+    return recoveryRequest(`${base}/history-api/recovery${params ? '?' + new URLSearchParams(params) : ''}`, { headers: { 'x-admin-key': key }, cache: 'no-store' });
   };
   const inventory = await get(), records = [];
   const total = Object.values(inventory.stores).reduce((sum, rows) => sum + rows.length, 0);
