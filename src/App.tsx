@@ -374,7 +374,6 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
     const word = entryWord.trim().toUpperCase();
     if (!word) return;
     const result = addBabbleWord(word);
-    setView("all");
     if (result === "0") {
       setEntryMessage(`${word.toLowerCase()} is not in this puzzle.`);
     } else {
@@ -409,7 +408,6 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
     list.forEach((word) => {
       if (addBabbleWord(word) === "1") added += 1;
     });
-    setView("all");
     setBulkWords("");
     setBulkMessage(`${list.length} words checked, and ${added} new words added.`);
   }
@@ -442,7 +440,10 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
     const bridge = window as BabbleBridge;
     const externalAdd = (word: string) => addBabbleWord(word);
     const externalGet = () => getAllWords();
-    const externalShow = () => setView("all");
+    // Older Expert clients call showAll() after each word as a legacy counter
+    // refresh. React updates the list and counters itself; keep the player's
+    // filter and only refresh filled answers for those compatibility calls.
+    const externalShow = () => foundRef.current.forEach(fillAnswer);
     const externalBulk = () => addBulkWords();
     bridge.AddBabbleWord = externalAdd;
     bridge.GetAllWords = externalGet;
