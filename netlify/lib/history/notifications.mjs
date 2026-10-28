@@ -4,8 +4,9 @@ import { parseGrid } from './solver.mjs';
 import { chatSettings } from './chat-settings.mjs';
 import { chooseDailyChatMessage } from './chat-message.mjs';
 import { productionNotifications } from '../env.mjs';
+import { pageCounterField, readPageCount } from '../page-counter-field.mjs';
 
-export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl = fetch, chatEnabled = env('NotifyBabblersOfClues') === 'true', announcementText, chooseMessage }) {
+export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl = fetch, chatEnabled = env('NotifyBabblersOfClues') === 'true', announcementText, chooseMessage, readCount = readPageCount }) {
   if (!productionNotifications()) return { outcome: 'preview-disabled' };
   let chatOutcome = chatEnabled ? 'waiting-for-validation' : 'disabled';
   let sentChatMessage;
@@ -61,6 +62,7 @@ export async function sendFlipNotice(event, details, { repo, webhook, fetchImpl 
   try {
     if (!await repo.claimNotification(key)) return { outcome: 'already-sent' };
     claimed = true;
+    fields.push(await pageCounterField(readCount));
     const response = await fetchImpl(webhook, {
       method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(4500),
       body: JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title, description,

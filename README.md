@@ -50,4 +50,6 @@ Use `npm test` for notification-field checks, `npm run typecheck` for TypeScript
 
 ### Memorable anonymous aliases
 
+Clues-related Discord notices include **Clues page visits (all time)**, read from the existing `babble-page-views` Netlify Blob ledger. This covers flip/publication notices, browser clue-completion celebrations and Expert clues/resource/Grab Grid/fireworks events. The total counts page visits, not unique people or visits to a particular puzzle. Reading it does not increment it. Counter failures show “Temporarily unavailable” without blocking notification delivery. This is a server change; existing Babble Expert installations need no rebuild or update.
+
 Discord shows a stable English first name above the installation code (for example, Katherine and BE-ABCD-EFGH). The server hashes the complete code with SHA-256, reads the first four bytes as an unsigned big-endian integer and selects a name from a fixed, versioned list. The list order and hash rule must remain unchanged to preserve existing aliases. No names are collected from users, and no mapping database is required. First names may repeat; retain the original code to distinguish installations. The algorithm is in netlify/lib/anonymous-alias.mjs.

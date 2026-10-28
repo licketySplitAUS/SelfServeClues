@@ -1,9 +1,10 @@
 import { validBrowserId, browserField } from '../lib/browser-alias.mjs';
 import { env, productionNotifications } from '../lib/env.mjs';
+import { pageCounterField, readPageCount } from '../lib/page-counter-field.mjs';
 const json = (body, status) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 const sources = { legacy: 'Original clues page', published: 'New clues page', 'self-serve': 'Self Serve clues page' };
 const origins = new Set(['https://r46.me', 'https://selfserve.r46.me', 'https://selfserveclues.netlify.app']);
-export default async request => {
+export const createHandler = ({ readCount = readPageCount } = {}) => async request => {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
   const origin = request.headers.get('origin');
   if (origin && !origins.has(origin)) return json({ error: 'Unsupported origin' }, 403);
@@ -18,6 +19,7 @@ export default async request => {
   if (!productionNotifications()) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
   const webhook = env('DISCORD_FIREWORKS_WEBHOOK_URL');
   if (!webhook) return json({ error: 'Notification service is not configured' }, 503);
+  const counterField = await pageCounterField(readCount);
   try {
     const sent = await fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(5000),
       body: JSON.stringify({ username: 'Lickety Clues', allowed_mentions: { parse: [] }, embeds: [{
@@ -27,6 +29,7 @@ export default async request => {
           { name: 'Puzzle', value: data.puzzle === null ? 'Custom grid' : String(data.puzzle), inline: true },
           { name: 'Words found', value: String(data.words), inline: true },
           { name: 'Celebration', value: data.effect === 'message' ? 'Congratulations message (reduced motion)' : 'Browser fireworks', inline: true },
+          counterField,
         ], timestamp: new Date().toISOString(),
       }] }),
     });
@@ -34,4 +37,5 @@ export default async request => {
     return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
   } catch { return json({ error: 'Notification service is unavailable' }, 502); }
 };
+export default createHandler();
 export const config = { path: '/api/clues-fireworks', rateLimit: { action: 'rate_limit', aggregateBy: ['ip', 'domain'], windowLimit: 10, windowSize: 60 } };

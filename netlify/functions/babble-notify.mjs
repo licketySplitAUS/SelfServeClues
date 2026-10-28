@@ -1,6 +1,7 @@
 import { env, productionNotifications } from "../lib/env.mjs";
 import { anonymousAlias } from "../lib/anonymous-alias.mjs";
 import { resolveInstallationAlias } from '../lib/alias-registry.mjs';
+import { pageCounterField, readPageCount } from '../lib/page-counter-field.mjs';
 
 const json = (body, status = 200) => Response.json(body, {
   status,
@@ -23,7 +24,7 @@ const duration = (value) => {
   return [hours ? `${hours}h` : "", minutes || hours ? `${minutes}m` : "", `${remainder}s`].filter(Boolean).join(" ");
 };
 
-export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), send = (...args) => fetch(...args) } = {}) => async (request, context) => {
+export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), send = (...args) => fetch(...args), readCount = readPageCount } = {}) => async (request, context) => {
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
   if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return json({ error: 'JSON required' }, 415);
 
@@ -75,6 +76,10 @@ export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), s
   }
   if (data.event === "session") {
     fields.unshift({ name: "Time in program", value: duration(data.durationSeconds), inline: false });
+  }
+
+  if (['resource', 'option'].includes(data.event) && (fireworks || /\bclues?\b|^Self Serve:/i.test(String(data.item || '')))) {
+    fields.push(await pageCounterField(readCount));
   }
 
   const message = {
