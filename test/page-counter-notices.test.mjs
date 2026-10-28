@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pageCounterField } from '../netlify/lib/page-counter-field.mjs';
+import { pageCounterField, readPageCount } from '../netlify/lib/page-counter-field.mjs';
 import { createHandler as expertHandler } from '../netlify/functions/babble-notify.mjs';
 import { createHandler as cluesHandler } from '../netlify/functions/clues-fireworks.mjs';
 import { sendFlipNotice } from '../netlify/lib/history/notifications.mjs';
@@ -8,6 +8,22 @@ import { sendFlipNotice } from '../netlify/lib/history/notifications.mjs';
 const fieldName = 'Clues page visits (all time)';
 const request = data => new Request('https://selfserve.r46.me/api/notice', {
   method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data),
+});
+
+test('notice counter reads the site-wide ledger when CONTEXT is absent at runtime', async t => {
+  const prior = process.env.CONTEXT;
+  delete process.env.CONTEXT;
+  t.after(() => { if (prior !== undefined) process.env.CONTEXT = prior; });
+  const total = 4199597;
+  const count = await readPageCount(options => {
+    assert.deepEqual(options, { name: 'babble-page-views', consistency: 'strong' });
+    return {
+      list: async ({ prefix }) => ({ blobs: prefix === 'checkpoints/' ? [{ key: 'checkpoints/2026-10-27' }] : [] }),
+      get: async () => ({ through: '2026-10-27', count: total }),
+      setJSON: () => assert.fail('Reporting must never write to the counter'),
+    };
+  });
+  assert.equal(count, total);
 });
 
 test('counter field formats totals and bounds unavailable, invalid and stalled reads', async () => {

@@ -1,10 +1,12 @@
-import { getStore, getDeployStore } from '@netlify/blobs';
+import { getStore } from '@netlify/blobs';
 import { makePageCounter } from './page-counter.mjs';
-import { env } from './env.mjs';
 
-export async function readPageCount() {
+export async function readPageCount(openStore = getStore) {
   const options = { name: 'babble-page-views', consistency: 'strong' };
-  const store = env('CONTEXT') === 'production' ? getStore(options) : getDeployStore(options);
+  // Notices report the live site's all-time total. CONTEXT is not guaranteed
+  // to be a runtime env var; choosing a deploy store can silently return the
+  // initial total from an empty ledger. This access is strictly read-only.
+  const store = openStore(options);
   return makePageCounter({ store }).read();
 }
 
