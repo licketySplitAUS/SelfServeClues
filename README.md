@@ -2,6 +2,8 @@
 
 This is a normal Vite/React site prepared for Netlify. The frontend is static, while Netlify Functions provide the shared daily grid, optional shared word-list replacement and Babble Expert usage notifications.
 
+**Developers:** start with the [developer guide](docs/DEVELOPER-GUIDE.md), [design principles](docs/DESIGN-PRINCIPLES.md) and [build/release handbook](docs/BUILD-AND-RELEASE.md). These cover all three repositories and link to their detailed architecture.
+
 **[System documentation, architecture diagrams and recovery handbook](docs/README.md)** — storage, daily triggers, official validation, publication, what is backed up, restoring runtime data and exporting grids to SQL Server. Admin’s **Backup & recovery** section downloads all runtime data, SQL staging exports and a standalone emergency clues page. GitHub contains source and imported history; subsequent runtime data and secret values require separate backups.
 
 ## Deploy with GitHub
@@ -52,4 +54,4 @@ Use `npm test` for notification-field checks, `npm run typecheck` for TypeScript
 
 Clues-related Discord notices include **Clues page visits (all time)**, read from the existing `babble-page-views` Netlify Blob ledger. This covers flip/publication notices, browser clue-completion celebrations and Expert clues/resource/Grab Grid/fireworks events. The total counts page visits, not unique people or visits to a particular puzzle. Reading it does not increment it. Counter failures show “Temporarily unavailable” without blocking notification delivery. This is a server change; existing Babble Expert installations need no rebuild or update.
 
-Discord shows a stable English first name above the installation code (for example, Katherine and BE-ABCD-EFGH). The server hashes the complete code with SHA-256, reads the first four bytes as an unsigned big-endian integer and selects a name from a fixed, versioned list. The list order and hash rule must remain unchanged to preserve existing aliases. No names are collected from users, and no mapping database is required. First names may repeat; retain the original code to distinguish installations. The algorithm is in netlify/lib/anonymous-alias.mjs.
+Discord shows a stable English first name above the installation code (for example, Katherine and BE-ABCD-EFGH). The server uses persistent create-only reservations and installation-to-name records in the shared Blob store, preserving reserved legacy aliases while allocating names to new installations. The older fixed-list SHA-256 algorithm remains a compatibility fallback and must stay stable. See [the registry](netlify/lib/alias-registry.mjs) and [fallback algorithm](netlify/lib/anonymous-alias.mjs). These are generated aliases, separate from optional self-reported username linking; retain the full installation code when identifying records. Browser identifiers use a separate alias path and are not evidence of unique people.

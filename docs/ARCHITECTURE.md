@@ -1,8 +1,8 @@
 # Architecture and design
 
-[Documentation home](README.md) · [Recovery](DISASTER-RECOVERY.md) · [SQL Server](SQL-SERVER-FAILOVER.md) · [Operations](OPERATIONS.md)
+[Documentation home](README.md) · [Developer guide](DEVELOPER-GUIDE.md) · [Design principles](DESIGN-PRINCIPLES.md) · [Build and release](BUILD-AND-RELEASE.md) · [Recovery](DISASTER-RECOVERY.md)
 
-This describes the implemented system as of **20 October 2026**. “Preview” is the new history-backed clues page’s current name; it is intended to replace the old public page later. It is already a production-hosted application, with its own saved state.
+This describes the web/backend system, originally documented on **20 October 2026** and reviewed against source on **29 October 2026**. “Preview” remains in historical filenames, endpoints and store names for the history-backed clues page; it does not establish that a page is isolated or that launch is still pending. Live routing and operator settings require a separately dated check. For the desktop process/view model and local logic flows, see [Expert's architecture](https://github.com/licketySplitAUS/BabbleExpert/blob/main/docs/ARCHITECTURE.md).
 
 ## 1. Whole-system view
 
@@ -128,7 +128,7 @@ flowchart LR
 | Store / source | Objects | Why it matters |
 |---|---|---|
 | `babble-history-preview-v1` | `control`; `generations/{id}/state` and `/snapshot`; `puzzles/{number}/{id}`; `notifications/...`; `settings/chat-announcements` | New puzzle history, correction decisions, rollback, notification/chat receipts and Admin chat setting |
-| `babble-shared-data` | `current-grid`, optional raw-text `words.txt` | Self Serve’s last fetched board and optional replacement dictionary |
+| `babble-shared-data` | `current-grid`, optional raw-text `words.txt`, `expert-aliases/v2/...` | Self Serve’s last fetched board, replacement dictionary and persistent installation alias reservations |
 | `babble-publication` | Optional `mode` | Admin’s selected old/new public route and deployment operation status; no object means legacy/off |
 | `babble-page-views` | `receipts/{uuid}`, `visits/{UTC-day}/{uuid}`, `checkpoints/{UTC-day}` | Shared visit ledger across refreshed clue pages |
 | Git: `data/history/baseline.json.gz` | Canonical game metadata, aggregate, active/rejected dictionary, imported current game, `sourceVersion` | Fixed foundation required to interpret runtime state |
@@ -136,6 +136,8 @@ flowchart LR
 | Git: `public/history-preview-data/*` | Static imported snapshot and audit | Website fallback and explanation of historical normalization |
 | Netlify environment | Credentials, webhooks and settings | Deployment configuration; secret values excluded from code and data backups |
 | Visitor browser / Expert local profile | Found words, typed answers, preferences, game cookies | Per-device state outside the site’s recovery backup |
+
+The full runtime recovery allowlist covers the four named application stores above. Operational stores `expert-diagnostic-delivery` (bounded delivery leases/receipts) and `babble-backup-health` are separate and are not part of that four-store export. Backup status must be checked independently; a successful code build is not a successful backup.
 
 The history baseline has a source checksum. Runtime state must match it; a changed baseline requires a deliberate migration rather than quietly combining different histories. Current/future word overrides do not rewrite earlier completed puzzles.
 
@@ -163,6 +165,7 @@ The original comparison showed 7,421 historical rows versus 7,266 canonical hist
 |---|---|
 | Page load → `/api/grab`, `/api/grid`, `/api/wordlist` | Fetch board, saved fallback, shared dictionary; Self Serve solves locally |
 | `/history-api/current` | Serve saved current solution and statistics, short CDN cache; imported fallback is static |
+| `/history-api/version` | Lightweight generation marker for visible/online frontend refresh; no solver/archive load (`clues-version.mjs`) |
 | `history-tick`: `* 5-7 * * *` UTC | Lightweight dispatcher; local-time guard covers US Central DST and configurable start |
 | `history-process`: background | Authorized recent dispatch; solve/validate/notify; longer candidate investigation fits here |
 | `/history-api/admin`: authorized POST | Check, accept, rebuild, correction, manual grid, rollback, partial legacy backup, explicit notification tests |
@@ -171,12 +174,12 @@ The original comparison showed 7,421 historical rows versus 7,266 canonical hist
 | `/history-api/unseen-four-letter-words`: GET | Four-letter entries in the active dictionary with no occurrence in the recorded grids, including the current published puzzle |
 | `/api/page-counter`: GET / UUID POST | Read shared count / record document visit |
 | `page-counter-checkpoint`: `0 4 * * *` UTC | Seal older visit days into immutable derived checkpoint |
-| `/history-api/recovery`: authorized GET | Inventory or read a saved object; SQL staging and emergency HTML downloads |
+| `/history-api/recovery`: authorized GET / POST | Inventory/read/export, or bounded batch reads; POST is still read-only recovery, not restore |
 | `/api/babble-notify`: POST | Opt-in Expert usage notifications to Discord; independent of solving |
 | Git push or Netlify build hook | Build/deploy website; source update does not carry runtime Blobs with it |
-| GitHub Expert release workflow | Build desktop installers and publish update assets |
+| GitHub Expert release workflow | Test/build native installers and upload artifacts; tag runs create a draft release, with publication/latest status handled separately |
 
-Current flip checking is enabled with start minute **17**, meaning 00:17 US Central through the one-hour window. The scheduler tapers checks from every minute to five and ten minutes and sends a deadline report if the new puzzle is still unavailable. A matched/corrected current-day puzzle avoids another upstream solve. Chat remains disabled until explicitly enabled.
+The documented operator configuration uses start minute **17**, meaning 00:17 US Central through the one-hour window; the code default is **0** if unset. Verify current environment/settings before relying on either. The scheduler tapers checks from every minute to five and ten minutes and sends a deadline report if the new puzzle is still unavailable. A matched/corrected current-day puzzle avoids another upstream solve. Chat requires its separate enabled setting. The dated October 2026 `history-launch` job has year/expiry guards and is not the recurring daily dispatcher.
 
 ## 7. Public-page switch
 
@@ -205,7 +208,7 @@ The **saved Admin selection** is the source of truth. Although an environment-va
 
 ## 8. Boundaries and failure behaviour
 
-Admin and recovery requests require `HISTORY_PREVIEW_ADMIN_KEY`; the key remains in Admin page memory. Credentials and webhooks are server-side. Backups include solutions, correction reasons and operational receipts, so keep the downloaded packs private. They contain no environment secret values, but should still be treated as operational data.
+Admin changes require `HISTORY_PREVIEW_ADMIN_KEY`; the key remains in Admin page memory. `HISTORY_BACKUP_KEY` additionally permits read-only recovery exports and backup-health reporting, not game/admin changes. Credentials and webhooks are server-side. Backups include solutions, correction reasons, alias mappings and operational receipts, so keep downloaded packs private. They contain no environment secret values, but should still be treated as operational data.
 
 Discord delivery failure does not undo puzzle publication. Claims deduplicate notifications; an ambiguous public-chat send retains its claim to prevent duplicate announcements. Do not clear notification receipts casually during recovery.
 
