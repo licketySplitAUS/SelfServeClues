@@ -61,6 +61,8 @@ The counter field in notifications reads the existing site-wide ledger without r
 
 ## Verification and documentation map
 
+The shared browser asset `public/clue-slot-entry.js` checks an exact clue-slot answer on Enter or blur, then advances on a second Enter. Both modern entry pages load it; Babble's `tools/clue-slot-entry.mjs` adds it durably to legacy builds. Extend `test/clue-slot-entry.test.mjs` and `tools/history/clue-filter-ui-check.cjs` for changes. The UI check optionally accepts `BABBLE_EXPERT_PRELOAD` (Expert's `src/preload-puzzle.js`) and `BABBLE_LEGACY_CLUES` (Babble's source `babbleclues.html`) to exercise embedded listeners and actual legacy hooks with a disposable profile and external requests blocked.
+
 For a meaningful bug fix, reproduce the failure with the smallest suitable existing fixture/test where practical, then verify the correction. Prefer controllable clocks and condition waits to fixed delays. Keep checks about observable behaviour/contracts; do not hide failures by weakening expectations or multiplying cases that repeat the implementation.
 
 Run `npm test`, `npm run typecheck` and `npm run build` as appropriate. For Functions/import/dependency changes also use `node tools/history/package-check.mjs`: it packages locally without deployment and checks archive inclusion, routes, schedules and lightweight handlers. If function configuration changes, update both this helper and `netlify.toml` consistently.
