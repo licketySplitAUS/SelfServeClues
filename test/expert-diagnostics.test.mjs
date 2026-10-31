@@ -45,6 +45,23 @@ test('diagnostic formatting omits unexpected free text and marks recovery clearl
   assert.doesNotMatch(JSON.stringify(result), /@everyone|private/);
 });
 
+test('occurrence dates use Sydney daylight saving and standard time with an unambiguous instant', () => {
+  const fields = occurredAt => diagnosticMessage({ ...report, occurredAt }).embeds[0].fields;
+  const summer = fields('2026-10-31T00:20:18.158Z').find(f => f.name === 'Occurred (Sydney)').value;
+  assert.match(summer, /31 Oct 2026/); assert.match(summer, /11:20:18 am AEDT/);
+  assert.match(summer, new RegExp(`<t:${Math.floor(Date.parse('2026-10-31T00:20:18.158Z') / 1000)}:R>`));
+  const winter = fields('2026-06-01T00:20:18.000Z').find(f => f.name === 'Occurred (Sydney)').value;
+  assert.match(winter, /10:20:18 am AEST/);
+});
+
+test('known local windows and connection errors have useful explanations without arbitrary labels', () => {
+  const fields = diagnosticMessage({ ...report, code: -15, window: 'highlights' }).embeds[0].fields;
+  assert.match(fields.find(f => f.name === 'What it means').value, /ERR_SOCKET_NOT_CONNECTED/);
+  assert.equal(fields.find(f => f.name === 'Window').value, "What's new");
+  assert.ok(!diagnosticMessage({ ...report, window: 'private path' }).embeds[0].fields.some(f => f.name === 'Window'));
+  assert.match(JSON.stringify(diagnosticMessage({ ...report, code: 'ERR_AUXILIARY_TIMEOUT' })), /Expert window did not finish/);
+});
+
 test('tour failures are accepted as a distinct diagnostic component', () => {
   const message = diagnosticMessage({ ...report, component: 'tour', reason: 'timeout', elapsedMs: 60000 });
   assert.ok(message);

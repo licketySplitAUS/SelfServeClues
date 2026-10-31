@@ -6,6 +6,7 @@ const pageErrors = [
   [-6, 'FILE_NOT_FOUND', 'A file needed to load the page could not be found.'],
   [-7, 'TIMED_OUT', 'The request took too long and timed out.'],
   [-10, 'ACCESS_DENIED', 'Access to the requested resource was denied.'],
+  [-15, 'SOCKET_NOT_CONNECTED', 'The network connection was no longer connected when the page tried to load.'],
   [-20, 'BLOCKED_BY_CLIENT', 'The browser or client software blocked the request.'],
   [-21, 'NETWORK_CHANGED', 'The network connection changed while the page was loading.'],
   [-100, 'CONNECTION_CLOSED', 'The connection closed before the page finished loading.'],
@@ -67,6 +68,7 @@ export function diagnosticErrorMeaning(event, code) {
     if (code === 'ERR_UPDATE_ABORTED') return 'The update request was cancelled.';
   }
   if (code === 'ERR_STARTUP_TIMEOUT') return 'The main window did not finish loading before the startup deadline.';
+  if (code === 'ERR_AUXILIARY_TIMEOUT') return 'An Expert window did not finish loading before the startup deadline.';
   if (code === 'ERR_MAIN_WINDOW_LOAD') return 'The main window could not be loaded; consult the local startup log for the cause.';
   // Renderer and process exit codes use a different namespace; never interpret
   // their numeric values as Chromium network failures.

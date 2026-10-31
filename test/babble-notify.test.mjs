@@ -1,7 +1,35 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHandler } from "../netlify/functions/babble-notify.mjs";
+import { createHandler, upgradeDelivery } from "../netlify/functions/babble-notify.mjs";
 const notify = createHandler();
+
+test('upgrade receipts suppress repeat launches, allow a later version and retry failed delivery', async t => {
+  const prior = process.env.DISCORD_WEBHOOK_URL;
+  process.env.DISCORD_WEBHOOK_URL = 'https://example.invalid/mock';
+  t.after(() => { if (prior === undefined) delete process.env.DISCORD_WEBHOOK_URL; else process.env.DISCORD_WEBHOOK_URL = prior; });
+  const rows = new Map(); let etag = 0, sends = 0, ok = true;
+  const store = {
+    getWithMetadata: async key => rows.get(key),
+    setJSON: async (key, data, options) => {
+      const row = rows.get(key);
+      if ((options.onlyIfNew && row) || (options.onlyIfMatch && row?.etag !== options.onlyIfMatch)) return { modified: false };
+      const next = { data, etag: String(++etag) }; rows.set(key, next); return { modified: true, etag: next.etag };
+    }
+  };
+  const handler = createHandler({ delivery: upgradeDelivery(store), send: async () => { sends++; return { ok }; } });
+  const request = version => new Request('https://example.test/api/babble-notify', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ event: 'upgrade', anonymousId: 'BE-ABCD-EFGH', previousVersion: '3.3.0.0', version }) });
+  assert.equal((await handler(request('3.4.0.0'), {})).status, 204);
+  assert.equal((await handler(request('3.4.0'), {})).status, 204);
+  assert.equal(sends, 1);
+  ok = false; assert.equal((await handler(request('3.5.0.0'), {})).status, 502);
+  ok = true; assert.equal((await handler(request('3.5.0.0'), {})).status, 204);
+  assert.equal(sends, 3);
+  const busy = await upgradeDelivery(store).claim({ anonymousId: 'BE-ABCD-EFGH', version: '3.6.0' });
+  assert.ok(busy.key);
+  assert.equal((await handler(request('3.6.0'), {})).status, 503);
+  assert.equal(sends, 3);
+});
 
 test("Babble notification sends only the approved fields to Discord", async (t) => {
   const originalFetch = globalThis.fetch;

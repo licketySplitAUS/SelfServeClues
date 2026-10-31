@@ -1,8 +1,7 @@
 // A short lease prevents simultaneous forwards. Sent IDs remain for 14 days.
 // Discord delivery and storage cannot be one transaction; a success followed
 // by a storage failure remains an explicitly best-effort delivery boundary.
-export function diagnosticDelivery(store, now = Date.now) {
-  const keyFor = data => `reports/${data.occurredAt.slice(0, 10)}/${data.reportId}`;
+export function diagnosticDelivery(store, now = Date.now, keyFor = data => `reports/${data.occurredAt.slice(0, 10)}/${data.reportId}`) {
   return {
     async claim(data) {
       const key = keyFor(data), row = await store.getWithMetadata(key, { type: 'json' });

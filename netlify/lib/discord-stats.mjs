@@ -111,7 +111,8 @@ export function summarizeMessages(messages, from, to) {
     const title = clean(embed.title), event = eventFor(title);
     const fields = new Map((Array.isArray(embed.fields) ? embed.fields : []).map(field => [field.name, String(field.value || '')]));
     const id = fields.get('Anonymous user')?.match(/\bBE-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}\b/)?.[0];
-    const occurred = Date.parse(fields.get('Occurred (UTC)'));
+    const localInstant = fields.get('Occurred (Sydney)')?.match(/<t:(\d{1,12}):R>/);
+    const occurred = localInstant ? Number(localInstant[1]) * 1000 : Date.parse(fields.get('Occurred (UTC)'));
     const observed = event === 'Diagnostics' && occurred >= epoch && occurred <= time ? occurred : time;
     const observedAt = new Date(observed).toISOString();
     const browser = fields.get('Anonymous browser')?.match(/\bCV-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\b/)?.[0];

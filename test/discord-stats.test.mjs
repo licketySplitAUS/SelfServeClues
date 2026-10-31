@@ -57,13 +57,14 @@ test('equivalent versions and platforms combine, while delayed diagnostics do no
   const messages = [
     post('Babble Expert started', { ...user, Version: '3.3.0.0', Platform: 'win32 / x64' }, now - 5000),
     post('Page could not load', { ...user, Version: '3.2.11.0', Platform: 'Windows · x64', Component: 'clues', 'Occurred (UTC)': new Date(now - 20000).toISOString() }, now - 1000),
+    post('Page could not load', { ...user, Version: '3.2.11.0', Platform: 'Windows · x64', Component: 'clues', 'Occurred (Sydney)': `Sydney date\n<t:${Math.floor((now - 20000) / 1000)}:R>` }, now - 500),
     post('Babble Expert session ended', { ...user, Version: '3.2.11', Platform: 'win32 · x64', 'Time in program': '1h 0m 0s' }, now - 10000),
     post('Babble Expert started', { ...user, Version: '3.3.0.1', Platform: 'darwin / arm64' }, now - 30000),
   ];
   for (const input of [messages, [...messages].reverse()]) {
     const row = summarizeMessages(input, from, to).groups[0];
-    assert.deepEqual(row.versions, { '3.3.0': 1, '3.2.11': 2, '3.3.0.1': 1 });
-    assert.equal(row.platforms['Windows / x64'], 3);
+    assert.deepEqual(row.versions, { '3.3.0': 1, '3.2.11': 3, '3.3.0.1': 1 });
+    assert.equal(row.platforms['Windows / x64'], 4);
     assert.equal(row.platforms['macOS / arm64'], 1);
     assert.equal(row.installations['BE-ABCD-EFGH'].latestVersion, '3.3.0');
     assert.equal(row.installations['BE-ABCD-EFGH'].versionAt, new Date(now - 5000).toISOString());

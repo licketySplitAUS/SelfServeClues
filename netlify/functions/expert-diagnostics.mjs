@@ -18,6 +18,8 @@ const reasons = new Set(['exception', 'timeout', 'check', 'download', 'install',
 const json = (body, status) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 const origins = new Set(['https://r46.me', 'https://selfserve.r46.me', 'https://selfserveclues.netlify.app', 'null']);
 const version = value => typeof value === 'string' && /^\d+(?:\.\d+){1,3}$/.test(value) && value.length <= 32;
+const sydneyTime = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Sydney',
+  day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
 
 export function diagnosticMessage(data) {
   if (!data || typeof data !== 'object' || typeof data.event !== 'string' || !Object.hasOwn(events, data.event) || !components.has(data.component)
@@ -33,6 +35,8 @@ export function diagnosticMessage(data) {
     { name: 'Platform', value: `${data.platform} / ${data.architecture}`, inline: true },
   ];
   if (typeof data.osRelease === 'string' && /^[\d.]{1,32}$/.test(data.osRelease)) fields.push({ name: 'OS build', value: data.osRelease, inline: true });
+  const windows = { zoom: 'Zoom', add: 'Lickety Add', history: 'Recent entries', message: 'Send lickety a message', help: 'Help', highlights: "What's new", clue: 'Create Clues', journal: 'Personal progress journal' };
+  if (typeof data.window === 'string' && Object.hasOwn(windows, data.window)) fields.push({ name: 'Window', value: windows[data.window], inline: true });
   if (Number.isInteger(data.memoryMB) && data.memoryMB > 0 && data.memoryMB <= 16777216) fields.push({ name: 'Total RAM', value: `${data.memoryMB} MB`, inline: true });
   if (reasons.has(data.reason)) fields.push({ name: 'Stage / reason', value: data.reason, inline: true });
   if ((Number.isInteger(data.code) && Math.abs(data.code) < 1000000) || (typeof data.code === 'string' && /^(?:ERR_[A-Z0-9_]{1,60}|E[A-Z]{2,20})$/.test(data.code))) {
@@ -44,7 +48,9 @@ export function diagnosticMessage(data) {
   if (Number.isInteger(data.count) && data.count > 1 && data.count <= 9999) fields.push({ name: 'Repeated incidents', value: String(data.count), inline: true });
   if (['Error', 'TypeError', 'RangeError', 'ReferenceError', 'SyntaxError', 'URIError', 'EvalError', 'AbortError'].includes(data.errorType)) fields.push({ name: 'Exception class', value: data.errorType, inline: true });
   if (['main.js', 'app.js', 'pages.js', 'engine.js', 'updates.js', 'settings.js', 'tour.js', 'startup.js', 'diagnostics.js', 'local-window.js', 'page-runtime.js', 'async.js'].includes(data.source) && Number.isInteger(data.line) && data.line > 0 && data.line < 100000) fields.push({ name: 'Application location', value: `${data.source}:${data.line}`, inline: true });
-  fields.push({ name: 'Occurred (UTC)', value: data.occurredAt, inline: false }, { name: 'Report ID', value: data.reportId, inline: false });
+  // The Discord timestamp preserves an unambiguous instant for statistics;
+  // the explicit Sydney date remains readable in any viewer's time zone.
+  fields.push({ name: 'Occurred (Sydney)', value: `${sydneyTime.format(new Date(data.occurredAt))}\n<t:${Math.floor(Date.parse(data.occurredAt) / 1000)}:R>`, inline: false }, { name: 'Report ID', value: data.reportId, inline: false });
   return { username: 'Babble Expert diagnostics', allowed_mentions: { parse: [] }, embeds: [{
     title: events[data.event], color: ['responsive', 'load-recovered'].includes(data.event) ? 0x51b985 : 0xe69b38,
     fields, timestamp: new Date().toISOString(),

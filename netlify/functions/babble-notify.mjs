@@ -2,6 +2,8 @@ import { env, productionNotifications } from "../lib/env.mjs";
 import { anonymousAlias } from "../lib/anonymous-alias.mjs";
 import { resolveInstallationAlias } from '../lib/alias-registry.mjs';
 import { pageCounterField, readPageCount } from '../lib/page-counter-field.mjs';
+import { getStore, getDeployStore } from '@netlify/blobs';
+import { diagnosticDelivery } from '../lib/diagnostic-delivery.mjs';
 
 const json = (body, status = 200) => Response.json(body, {
   status,
@@ -24,7 +26,7 @@ const duration = (value) => {
   return [hours ? `${hours}h` : "", minutes || hours ? `${minutes}m` : "", `${remainder}s`].filter(Boolean).join(" ");
 };
 
-export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), send = (...args) => fetch(...args), readCount = readPageCount } = {}) => async (request, context) => {
+export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), send = (...args) => fetch(...args), readCount = readPageCount, delivery } = {}) => async (request, context) => {
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
   if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return json({ error: 'JSON required' }, 415);
 
@@ -44,9 +46,18 @@ export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), s
     : data.event === 'startup' ? env('DISCORD_STARTUP_WEBHOOK_URL')
     : data.event === 'session' ? env('DISCORD_SESSION_WEBHOOK_URL') : null) || env('DISCORD_WEBHOOK_URL');
   if (!webhookUrl) return json({ error: "Notification service is not configured" }, 503);
-  let alias;
-  try { alias = await resolveAlias(data.anonymousId); }
-  catch { return json({ error: 'Installation alias is temporarily unavailable.' }, 503); }
+  let alias, claim;
+  try {
+    if (data.event === 'upgrade' && delivery && anonymousId(data.anonymousId) !== 'Unknown' && /^\d+\.\d+\.\d+(?:\.\d+)?$/.test(data.version) && data.version.length <= 24) {
+      claim = await delivery.claim(data);
+      if (claim?.duplicate) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
+      if (claim?.busy) return json({ error: 'Upgrade delivery is in progress; retry later.' }, 503);
+    }
+    alias = await resolveAlias(data.anonymousId);
+  } catch {
+    if (claim?.key) await delivery.finish(claim, false).catch(() => {});
+    return json({ error: 'Notification preparation is temporarily unavailable.' }, 503);
+  }
 
   const country = clean(context.geo?.country?.name || context.geo?.country?.code || "Unknown", 60);
   const titles = {
@@ -102,11 +113,38 @@ export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), s
       signal: AbortSignal.timeout(5000),
     });
   } catch {
+    if (claim?.key) await delivery.finish(claim, false).catch(() => {});
     return json({ error: "Notification service is unavailable" }, 502);
   }
-  if (!discordResponse.ok) return json({ error: "Notification was rejected" }, 502);
+  if (!discordResponse.ok) {
+    if (claim?.key) await delivery.finish(claim, false).catch(() => {});
+    return json({ error: "Notification was rejected" }, 502);
+  }
+  if (claim?.key) {
+    try { await delivery.finish(claim, true); }
+    catch { return json({ error: 'Notification receipt could not be saved.' }, 503); }
+  }
   return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
 };
 
 export const config = { path: "/api/babble-notify", rateLimit: { action: 'rate_limit', aggregateBy: ['ip', 'domain'], windowLimit: 60, windowSize: 60 } };
-export default createHandler({ resolveAlias: resolveInstallationAlias });
+export const upgradeDelivery = (store, now = Date.now) => diagnosticDelivery(store, now,
+  data => `upgrades/${data.anonymousId}/${data.version.replace(/^(\d+\.\d+\.\d+)\.0$/, '$1')}`);
+
+export default (request, context) => {
+  // Upgrade receipts are retained per installation/version, independently of
+  // expiring diagnostics. Equivalent three/four-part versions share a receipt.
+  // Resolve storage only after validation and production-notification gating.
+  // Other event types do not need a receipt or a Blobs environment.
+  let receipts;
+  const getReceipts = () => {
+    if (!receipts) {
+      const options = { name: 'expert-diagnostic-delivery', consistency: 'strong' };
+      const production = (context?.deploy?.context || env('CONTEXT')) === 'production';
+      receipts = upgradeDelivery(production ? getStore(options) : getDeployStore(options));
+    }
+    return receipts;
+  };
+  const delivery = { claim: data => getReceipts().claim(data), finish: (claim, sent) => getReceipts().finish(claim, sent) };
+  return createHandler({ resolveAlias: resolveInstallationAlias, delivery })(request, context);
+};
