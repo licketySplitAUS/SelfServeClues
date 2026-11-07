@@ -156,6 +156,16 @@ test('existing Expert fireworks starts and replays use the dedicated webhook whi
   }
   assert.deepEqual(sent.map(s => s.url), ['https://example.invalid/fireworks', 'https://example.invalid/fireworks', 'https://example.invalid/fireworks', 'https://example.invalid/default']);
   assert.equal(sent[0].body.embeds[0].title, 'Babble Expert fireworks triggered');
+  assert.equal(sent[0].body.embeds[0].fields.find(field => field.name === 'Celebration').value, 'Fireworks', 'older clients retain their known animation');
+  const celebrationRequest = animation => new Request('https://example.test/api/babble-notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ event: 'option', item: 'Fireworks replay', animation }) });
+  for (const [animation, label] of [['curtain', 'Red stage curtain'], ['message', 'Congratulations message (reduced motion)']]) {
+    assert.equal((await notify(celebrationRequest(animation), {})).status, 204);
+    assert.equal(sent.at(-1).url, 'https://example.invalid/fireworks');
+    assert.equal(sent.at(-1).body.embeds[0].title, 'Babble Expert celebration triggered');
+    assert.equal(sent.at(-1).body.embeds[0].fields.find(field => field.name === 'Celebration').value, label);
+  }
+  const count = sent.length;
+  assert.equal((await notify(celebrationRequest('@everyone'), {})).status, 400); assert.equal(sent.length, count);
   delete process.env.DISCORD_FIREWORKS_WEBHOOK_URL;
   await notify(new Request('https://example.test/api/babble-notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ event: 'option', item: 'Fireworks' }) }), {});
   assert.equal(sent.at(-1).url, 'https://example.invalid/default');

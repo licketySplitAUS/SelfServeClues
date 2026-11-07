@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const context = { module: { exports: {} }, URLSearchParams };
+const context = { module: { exports: {} }, URLSearchParams, URL };
 vm.runInNewContext(fs.readFileSync(new URL('../public/clues-celebration.js', import.meta.url), 'utf8'), context);
-const { installCluesCelebration } = context.module.exports;
+const { installCluesCelebration, installExpertCelebrationUpgrade } = context.module.exports;
 function fixture({ electron = false, reduced = false, storage = new Map(), print = false } = {}) {
   const nodes = [], events = new Map(), observers = [], timers = new Map();
   const element = () => ({ style: {}, removed: false, children: [], attributes: {},
@@ -25,10 +25,55 @@ function fixture({ electron = false, reduced = false, storage = new Map(), print
     MutationObserver: class { constructor(fn) { this.fn = fn; observers.push(this); } observe() {} disconnect() { this.disconnected = true; } },
   };
   let shows = 0, destroyed = 0;
-  const fireworks = (canvas, options) => { shows++; assert.equal(options.sound, false); assert.equal(options.clickReplay, false); assert.equal(options.transparent, true); return { destroy() { destroyed++; } }; };
+  const fireworks = (canvas, options) => { shows++; assert.equal(options.sound, true); assert.equal(options.clickReplay, false); assert.equal(options.transparent, true); return { destroy() { destroyed++; } }; };
   return { win, nodes, events, observers, timers, storage, fireworks, shows: () => shows, destroyed: () => destroyed };
 }
 const complete = { puzzleKey: 'published:8618:ABCDEFGHIJKLMNOPQRSTUVWXY', total: 3, found: 3 };
+
+test('older Expert gets a silent hosted Clues effect through its existing replay/dismiss handle; new Expert remains in charge', () => {
+  const f = fixture({ electron: true }); let starts = 0, oldStops = 0, stops = 0;
+  const render = (canvas, options) => { assert.equal(options.sound, false); assert.equal(options.clickReplay, false); starts++; canvas.dataset = { effect: 'slime' }; return { destroy() { stops++; canvas.remove(); } }; };
+  const addOld = () => { const canvas = f.win.document.createElement('canvas'); canvas.id = 'babble-expert-fireworks'; canvas.dataset = {}; f.win.document.body.appendChild(canvas); f.win.__babbleExpertFireworks = { destroy() { oldStops++; canvas.remove(); } }; };
+  const controller = installExpertCelebrationUpgrade(f.win, render);
+  assert.equal(controller.enabled, true); assert.equal(starts, 0);
+  addOld(); f.observers[0].fn(); assert.equal(starts, 1); assert.equal(oldStops, 1);
+  f.observers[0].fn(); assert.equal(starts, 1, 'the replacement cannot restart itself');
+  f.win.__babbleExpertFireworks.destroy(); assert.equal(stops, 1, 'old Expert Hide stops the hosted effect');
+  addOld(); f.observers[0].fn(); assert.equal(starts, 2, 'old Expert replay receives a fresh effect');
+  f.win.__babbleExpertFireworks.destroy();
+  const modern = f.win.document.createElement('canvas'); modern.id = 'babble-expert-fireworks'; modern.dataset = { effect: 'curtain' }; f.win.document.body.appendChild(modern);
+  f.observers[0].fn(); assert.equal(starts, 2, 'Expert 3.6 selected effects are never replaced');
+  assert.equal(f.storage.size, 0, 'the bridge never claims browser completion');
+  controller.stop(); assert.equal(f.observers[0].disconnected, true);
+  for (const options of [{}, { electron: true, print: true }]) assert.equal(installExpertCelebrationUpgrade(fixture(options).win, render).enabled, false);
+});
+
+test('browser celebrations enable sound and offer mute/unmute; reduced motion stays silent', () => {
+  const f = fixture(), soundChanges = [];
+  const controller = installCluesCelebration(f.win, (_canvas, options) => {
+    assert.equal(options.sound, true);
+    return { setSoundEnabled: enabled => soundChanges.push(enabled), destroy() {} };
+  });
+  controller.progress(complete);
+  const notice = f.nodes.find(node => node.attributes.role === 'status');
+  const mute = notice.children.find(node => node.textContent === 'Mute');
+  mute.click(); assert.equal(mute.textContent, 'Enable sound');
+  mute.click(); assert.equal(mute.textContent, 'Mute');
+  assert.deepEqual(soundChanges, [false, true]); controller.stop();
+  const reduced = fixture({ reduced: true });
+  installCluesCelebration(reduced.win, () => assert.fail('reduced motion must not create audio or an animation')).progress(complete);
+  assert.equal(reduced.nodes.find(node => node.attributes.role === 'status').children.some(node => node.textContent === 'Mute'), false);
+});
+
+test('browser completion reports the renderer selection and the reduced-motion fallback', () => {
+  for (const reduced of [false, true]) {
+    const f = fixture({ reduced }); let notice;
+    f.win.fetch = (_url, options) => { notice = JSON.parse(options.body); return Promise.resolve(); };
+    installCluesCelebration(f.win, (_canvas, options) => { options.onStart({ effect: 'curtain', animation: 'curtain' }); return { destroy() {} }; }).progress(complete);
+    assert.equal(notice.animation, reduced ? 'message' : 'curtain');
+    assert.equal(notice.effect, reduced ? 'message' : 'fireworks');
+  }
+});
 test('ordinary browser completion runs once; partial, empty, duplicate and restored progress do not replay', () => {
   const f = fixture(); const controller = installCluesCelebration(f.win, f.fireworks);
   assert.equal(f.shows(), 0, 'Saved progress is not checked at installation');
@@ -85,7 +130,7 @@ test('unavailable storage does not prevent celebration or cause duplicate shows'
 test('the actual canvas renderer starts, advances and shuts down without audio or lingering frames', () => {
   const f = fixture(); let clock = 0, nextFrame = 0; const frames = new Map();
   const gradient = { addColorStop() {} };
-  const drawing = new Proxy({}, { get: (_, key) => key === 'createRadialGradient' ? () => gradient : () => {}, set: () => true });
+  const drawing = new Proxy({}, { get: (_, key) => /create.*Gradient/.test(key) ? () => gradient : () => {}, set: () => true });
   const create = f.win.document.createElement;
   f.win.document.createElement = tag => { const node = create(tag); node.dataset = {}; node.getContext = () => drawing; node.removeEventListener = () => {}; return node; };
   const rendererContext = { module: { exports: {} }, URLSearchParams, performance: { now: () => clock },
@@ -103,6 +148,33 @@ test('the actual canvas renderer starts, advances and shuts down without audio o
   f.events.get('keydown')({ key: 'Escape' }); assert.equal(frames.size, 0); assert.equal(f.timers.size, 0);
 });
 
+test('hidden previews can choose effects without claiming completion or reporting, then hand over to Expert', () => {
+  const f = fixture(); let notices = 0;
+  f.win.fetch = () => { notices++; return Promise.resolve(); };
+  installCluesCelebration(f.win, f.fireworks);
+  f.events.get('lickety:celebration-preview')({ detail: { effect: 'lanterns' } });
+  assert.equal(f.shows(), 1); assert.equal(notices, 0); assert.equal(f.storage.size, 0);
+  f.events.get('keydown')({ key: 'Escape' }); assert.equal(f.destroyed(), 1);
+  f.events.get('lickety:clues-progress')({ detail: complete });
+  assert.equal(f.shows(), 2); assert.equal(notices, 1); assert.equal(f.storage.size, 1);
+  const embedded = fixture({ electron: true });
+  assert.equal(installCluesCelebration(embedded.win, embedded.fireworks).enabled, false);
+});
+
+test('five quick heart-logo clicks open the standalone chooser, leaving completion unclaimed', () => {
+  const f = fixture(); installCluesCelebration(f.win, f.fireworks);
+  let prevented = 0;
+  const click = f.events.get('click');
+  const event = { target: { closest: () => ({ src: 'https://r46.me/MyLogo.gif' }) }, preventDefault() { prevented++; } };
+  for (let i = 0; i < 4; i++) click(event);
+  assert.equal(f.shows(), 0);
+  click(event); assert.equal(f.shows(), 1); assert.equal(prevented, 5); assert.equal(f.storage.size, 0);
+  const panel = f.nodes.find(node => node.attributes.role === 'status');
+  const chooser = panel.children.find(node => node.attributes['aria-label'] === 'Celebration effect');
+  assert.equal(chooser.children.length, 13);
+  chooser.value = 'slime'; chooser.change(); assert.equal(f.shows(), 2); assert.equal(f.destroyed(), 1);
+});
+
 
 test('only a newly triggered browser celebration sends a completion notice, with no grid or entered words', async () => {
   const f = fixture(); const notices = [];
@@ -111,7 +183,7 @@ test('only a newly triggered browser celebration sends a completion notice, with
   controller.progress({ ...complete, found: 2 }); assert.equal(notices.length, 0);
   controller.progress(complete); controller.progress(complete); assert.equal(notices.length, 1);
   assert.equal(notices[0].url, '/api/clues-fireworks');
-  assert.deepEqual(notices[0].data, { source: 'published', puzzle: '8618', words: 3, effect: 'fireworks' });
+  assert.deepEqual(notices[0].data, { source: 'published', puzzle: '8618', words: 3, effect: 'fireworks', animation: 'fireworks' });
   assert.equal(notices[0].options.keepalive, true); assert.equal(f.shows(), 1);
   await Promise.resolve();
   const expert = fixture({ electron: true }); expert.win.fetch = () => assert.fail('Expert does not send browser reports');

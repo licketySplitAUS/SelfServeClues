@@ -46,7 +46,7 @@ For reviews, report actionable defects with a concrete trigger and file/line evi
 - Self Serve solves in-browser; history-backed clues serve a saved centrally validated solution. Their dictionary overrides are separate.
 - Preserve Qu/scoring, valid puzzle identity, stable observations and reasoned corrections. Only explicit dictionary membership rejection can permanently exclude a word; network/login/board-path errors cannot.
 - Preserve immutable puzzle/generation records, baseline fingerprints, conditional control updates and idempotent receipts. Derived statistics must not double-count revised puzzles.
-- Preserve `AddBabbleWord`, `GetAllWords`, `showAll`, `AddBulkWord` and desktop DOM hooks. Keep All/On/Off, per-visitor progress, browser Bulk Add/Grab, printable output and generation-based refresh. Embedded celebrations defer to Expert.
+- Preserve `AddBabbleWord`, `GetAllWords`, `showAll`, `AddBulkWord` and desktop DOM hooks. Keep All/On/Off, per-visitor progress, browser Bulk Add/Grab, printable output and generation-based refresh. Embedded sound/reporting defer to Expert. Hosted Clues may upgrade older unlabelled Expert canvases silently through their existing replay/Hide handle; leave newer Expert's selected effects untouched.
 - Publication selection, actual public deployment, daily schedule and chat announcements are separate states. Saved Admin chat settings override the environment fallback. Schedules use `America/Chicago`, not Sydney time; the old dated launch is not a daily trigger.
 - Keep aliases persistently reserved, identify installations by full ID, and distinguish visits/installations/browsers/app-open duration in statistics. Notification counters read the site-wide ledger without incrementing visits.
 
@@ -60,4 +60,4 @@ Finish routine local implementation/checks autonomously. Preserve unrelated edit
 
 Find relevant symbols first; reuse saved logs and batch edits before rebuilding. Follow React/TypeScript/`.mjs` patterns; explain non-obvious reasons in comments. Assess dependency bundle/cold-start cost. Browser code must not import server-only modules; `shared/` supports both runtimes. Inspect final changes/new files for scope drift. Report checks/limits per repository; distinguish local, pushed, live and installer changes.
 
-Reviewed 29 October 2026. Update this guide alongside changed commands/contracts. Retain recurring, non-obvious rules; remove superseded guidance. Later explicit instructions take precedence.
+Reviewed 8 November 2026. Update this guide alongside changed commands/contracts. Retain recurring, non-obvious rules; remove superseded guidance. Later explicit instructions take precedence.

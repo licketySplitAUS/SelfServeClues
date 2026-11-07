@@ -1,6 +1,7 @@
 import { validBrowserId, browserField } from '../lib/browser-alias.mjs';
 import { env, productionNotifications } from '../lib/env.mjs';
 import { pageCounterField, readPageCount } from '../lib/page-counter-field.mjs';
+import { celebrationNames, validAnimation } from '../lib/celebration-names.mjs';
 const json = (body, status) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 const sources = { legacy: 'Original clues page', published: 'New clues page', 'self-serve': 'Self Serve clues page' };
 const origins = new Set(['https://r46.me', 'https://selfserve.r46.me', 'https://selfserveclues.netlify.app']);
@@ -16,6 +17,8 @@ export const createHandler = ({ readCount = readPageCount } = {}) => async reque
   if (!data || typeof data.source !== 'string' || !Object.hasOwn(sources, data.source) || !Number.isInteger(data.words) || data.words < 1 || data.words > 2000 ||
       !['fireworks', 'message'].includes(data.effect) || (data.puzzle !== null && (typeof data.puzzle !== 'string' || !/^\d{1,8}$/.test(data.puzzle)))) return json({ error: 'Invalid completion notice' }, 400);
   if (data.browserId !== undefined && !validBrowserId(data.browserId)) return json({ error: 'Invalid browser ID' }, 400);
+  if (data.animation !== undefined && !validAnimation(data.animation)) return json({ error: 'Invalid animation' }, 400);
+  const animation = data.effect === 'message' ? 'message' : (data.animation || 'fireworks');
   if (!productionNotifications()) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
   const webhook = env('DISCORD_FIREWORKS_WEBHOOK_URL');
   if (!webhook) return json({ error: 'Notification service is not configured' }, 503);
@@ -23,12 +26,12 @@ export const createHandler = ({ readCount = readPageCount } = {}) => async reque
   try {
     const sent = await fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(5000),
       body: JSON.stringify({ username: 'Lickety Clues', allowed_mentions: { parse: [] }, embeds: [{
-        title: data.effect === 'message' ? 'Clues completed — reduced-motion celebration' : 'Clues completed — fireworks triggered', color: 0xffc857,
+        title: animation === 'message' ? 'Clues completed — reduced-motion celebration' : animation === 'fireworks' ? 'Clues completed — fireworks triggered' : 'Clues completed — celebration triggered', color: 0xffc857,
         fields: [browserField(data.browserId),
           { name: 'Source', value: sources[data.source], inline: true },
           { name: 'Puzzle', value: data.puzzle === null ? 'Custom grid' : String(data.puzzle), inline: true },
           { name: 'Words found', value: String(data.words), inline: true },
-          { name: 'Celebration', value: data.effect === 'message' ? 'Congratulations message (reduced motion)' : 'Browser fireworks', inline: true },
+          { name: 'Celebration', value: celebrationNames[animation], inline: true },
           counterField,
         ], timestamp: new Date().toISOString(),
       }] }),

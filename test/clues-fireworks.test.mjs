@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import handler, { config } from '../netlify/functions/clues-fireworks.mjs';
+import { celebrationNames } from '../netlify/lib/celebration-names.mjs';
 const valid = { source: 'published', puzzle: '8618', words: 155, effect: 'fireworks', browserId: 'CV-12345678-1234-4234-8234-123456789abc' };
 const request = (data = valid, headers = {}) => new Request('https://r46.me/api/clues-fireworks', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://r46.me', ...headers }, body: typeof data === 'string' ? data : JSON.stringify(data) });
 test('browser completion sends an alias and public totals, never personal details or entered words', async t => {
@@ -18,10 +19,15 @@ test('browser completion sends an alias and public totals, never personal detail
   assert.equal(sent.body.embeds[0].fields[1].value, 'New clues page');
   await handler(request({ ...valid, source: 'self-serve', puzzle: null, effect: 'message' }));
   assert.match(sent.body.embeds[0].title, /reduced-motion/); assert.equal(sent.body.embeds[0].fields[2].value, 'Custom grid');
+  for (const [animation, label] of Object.entries(celebrationNames)) {
+    assert.equal((await handler(request({ ...valid, animation }))).status, 204);
+    assert.equal(sent.body.embeds[0].fields.find(field => field.name === 'Celebration').value, label);
+  }
 });
 test('malformed and cross-site requests never contact Discord', async t => {
   const previous = globalThis.fetch; t.after(() => { globalThis.fetch = previous; });
   globalThis.fetch = () => assert.fail('Rejected requests must not contact Discord');
+  for (const animation of ['@everyone', '__proto__', {}, null]) assert.equal((await handler(request({ ...valid, animation }))).status, 400);
   for (const input of [null, {}, { ...valid, source: '__proto__' }, { ...valid, source: {} }, { ...valid, words: 0 }, { ...valid, words: 99999 }, { ...valid, puzzle: '@everyone' }, { ...valid, effect: 'arbitrary' }, '{']) assert.equal((await handler(request(input))).status, 400);
   assert.equal((await handler(request(valid, { origin: 'https://unrelated.example' }))).status, 403);
   assert.equal((await handler(request(valid, { 'content-type': 'text/plain' }))).status, 415);

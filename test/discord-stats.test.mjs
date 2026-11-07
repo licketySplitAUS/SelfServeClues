@@ -14,6 +14,11 @@ const response = (data, status = 200, headers = {}) => Response.json(data, { sta
 const request = (params = {}, headers = {}) => new Request('https://selfserve.r46.me/history-api/discord-stats?' + new URLSearchParams(params), { headers });
 const env = key => ({ DISCORD_STATS_BOT_TOKEN: 'secret-test-token', DISCORD_STATS_CHANNEL_IDS: channel.id })[key];
 
+test('new celebration notifications retain the existing Expert celebration totals', () => {
+  const data = summarizeMessages([post('Babble Expert celebration triggered'), post('Babble Expert fireworks triggered')], from, to);
+  assert.equal(data.groups.find(group => group.cohort === 'unattributed').events['Expert fireworks'], 2);
+});
+
 test('dates use Sydney calendar boundaries including both daylight-saving transitions', () => {
   assert.equal(reportRange(new URLSearchParams({ period: 'today' }), now).from, '2026-10-23T13:00:00.000Z');
   for (const [day, start, end, hours] of [

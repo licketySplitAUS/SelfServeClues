@@ -4,6 +4,7 @@ import { resolveInstallationAlias } from '../lib/alias-registry.mjs';
 import { pageCounterField, readPageCount } from '../lib/page-counter-field.mjs';
 import { getStore, getDeployStore } from '@netlify/blobs';
 import { diagnosticDelivery } from '../lib/diagnostic-delivery.mjs';
+import { celebrationNames, validAnimation } from '../lib/celebration-names.mjs';
 
 const json = (body, status = 200) => Response.json(body, {
   status,
@@ -40,6 +41,7 @@ export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), s
   }
 
   const fireworks = ['resource', 'option'].includes(data.event) && /^Fireworks(?: replay)?$/i.test(String(data.item || '').trim());
+  if (fireworks && data.animation !== undefined && !validAnimation(data.animation)) return json({ error: 'Invalid animation' }, 400);
   if (!productionNotifications()) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
   const webhookUrl = (fireworks ? env('DISCORD_FIREWORKS_WEBHOOK_URL') : data.event === 'upgrade' ? env('DISCORD_UPGRADE_WEBHOOK_URL')
     : data.event === 'install' ? env('DISCORD_NEW_USER_WEBHOOK_URL')
@@ -92,12 +94,13 @@ export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), s
   if (['resource', 'option'].includes(data.event) && (fireworks || /\bclues?\b|^Self Serve:/i.test(String(data.item || '')))) {
     fields.push(await pageCounterField(readCount));
   }
+  if (fireworks) fields.push({ name: 'Celebration', value: celebrationNames[data.animation || 'fireworks'], inline: true });
 
   const message = {
     username: "Babble Expert",
     allowed_mentions: { parse: [] },
     embeds: [{
-      title: fireworks ? "Babble Expert fireworks triggered" : titles[data.event],
+      title: fireworks ? (data.animation && data.animation !== 'fireworks' ? 'Babble Expert celebration triggered' : 'Babble Expert fireworks triggered') : titles[data.event],
       color: fireworks ? 0xffc857 : colors[data.event],
       fields,
       timestamp: new Date().toISOString(),
