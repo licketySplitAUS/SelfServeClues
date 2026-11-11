@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { adjust, meta, snapshotFor, unseenFourLetterWords } from './stats.mjs';
 import { parseGrid, sameGrid, solveGrid, validIdentity } from './solver.mjs';
 import { analyzeUnseenWords } from './dice.mjs';
+import { currentSnapshot } from './current.mjs';
 
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16);
 export function makeService({ repo, baseline, archivedGame, fetchImpl = fetch, clock = () => new Date(), validate = null }) {
@@ -19,13 +20,10 @@ export function makeService({ repo, baseline, archivedGame, fetchImpl = fetch, c
     return state;
   }
   async function current() {
-    const { value } = await repo.control();
-    const snapshot = value?.snapshotKey ? await repo.read(value.snapshotKey)
-      : snapshotFor(baseline.aggregate, baseline.games, baseline.current, baseline.dictionary, {
+    return currentSnapshot(repo, () => snapshotFor(baseline.aggregate, baseline.games, baseline.current, baseline.dictionary, {
         source: 'import', sourceVersion: baseline.sourceVersion, updatedAt: baseline.importedAt,
         status: 'Imported database snapshot.',
-      });
-    return { ...snapshot, monitor: { lastCheck: value?.lastCheck || null, message: value?.message || null, candidate: value?.candidate || null } };
+      }));
   }
   async function aggregateFor(state) {
     const aggregate = structuredClone(baseline.aggregate);

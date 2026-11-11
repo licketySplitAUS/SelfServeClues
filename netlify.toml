@@ -26,6 +26,13 @@
   [headers.values]
     Cache-Control = "public, max-age=86400"
 
+# Vite fingerprints these filenames by content. New builds use new URLs;
+# HTML and live puzzle/API responses must continue to check for fresh data.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
 [[headers]]
   for = "/api/*"
   [headers.values]

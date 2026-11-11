@@ -53,6 +53,13 @@ const systemErrors = new Map(Object.entries({
 }));
 
 export function diagnosticErrorMeaning(event, code) {
+  const notices = {
+    'load-slow': 'This window has not finished loading within the monitoring threshold. It may still load successfully; this is a delay warning, not a confirmed crash. Repeated delays can indicate a slow computer, busy disk or network.',
+    'load-recovered': 'The window finished loading after an earlier delay warning. This is a recovery notice, not another failure.',
+    unresponsive: 'This window temporarily stopped answering. A busy computer or a long-running page task can cause this; this report alone does not establish a crash.',
+    responsive: 'The window is answering again after an earlier freeze warning. This is a recovery notice, not another failure.',
+  };
+  if (Object.hasOwn(notices, event)) return notices[event];
   if (event === 'load-failed') {
     const error = typeof code === 'number' ? pageCodes.get(code) : pageNames.get(code);
     if (error) return `${error.message}\n${error.name}`;
@@ -63,9 +70,15 @@ export function diagnosticErrorMeaning(event, code) {
     const http = code.match(/^ERR_HTTP_([45]\d\d)$/);
     if (http) return ({ 401: 'The update service requires authorization.', 403: 'The update service refused the request; access restrictions or rate limits may apply.',
       404: 'The requested update resource was not found.', 429: 'The update service is rate limiting requests. Try again later.',
-      503: 'The update service is temporarily unavailable.' })[http[1]] || `The update service returned HTTP ${http[1]}.`;
+      502: 'The update service received an invalid response from an upstream server (HTTP 502). This is usually temporary; a later check may succeed.',
+      503: 'The update service is temporarily unavailable.',
+      504: 'The update service took too long to answer (HTTP 504, gateway timeout). Expert could not determine whether an update is available; a later check may succeed.' })[http[1]] || `The update service returned HTTP ${http[1]}.`;
+    if (code === 'ERR_UPDATER_INVALID_RELEASE_FEED') return 'Expert could not read GitHub’s release listing, so it could not determine whether an update is available. This can include a temporary network or GitHub error hidden by the updater. It does not mean the installed app or installer is damaged. If it keeps happening, check the release service and local connection.';
+    if (code === 'ERR_UPDATER_LATEST_VERSION_NOT_FOUND') return 'Expert could not look up the latest published release on GitHub. A connection failure or an unavailable release can cause this; this code alone does not distinguish them.';
+    if (code === 'ERR_UPDATER_INVALID_SIGNATURE') return 'The downloaded update failed its signature check. Expert did not install it; check the release files and signing configuration.';
+    if (code === 'ERR_UPDATER_CHECKSUM_MISMATCH') return 'The downloaded update did not match its published checksum. Expert did not install it; retry the download and check the release files if it repeats.';
     if (code === 'ERR_UPDATE_UNKNOWN') return 'The updater did not supply a recognizable technical error code.';
-    if (code === 'ERR_UPDATE_ABORTED') return 'The update request was cancelled.';
+    if (code === 'ERR_UPDATE_ABORTED') return 'The update request was cancelled. Closing Expert, shutdown or a cancelled network request can cause this; it does not establish an update defect.';
   }
   if (code === 'ERR_STARTUP_TIMEOUT') return 'The main window did not finish loading before the startup deadline.';
   if (code === 'ERR_AUXILIARY_TIMEOUT') return 'An Expert window did not finish loading before the startup deadline.';

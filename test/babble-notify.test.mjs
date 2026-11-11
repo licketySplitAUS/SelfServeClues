@@ -157,6 +157,16 @@ test('existing Expert fireworks starts and replays use the dedicated webhook whi
   assert.deepEqual(sent.map(s => s.url), ['https://example.invalid/fireworks', 'https://example.invalid/fireworks', 'https://example.invalid/fireworks', 'https://example.invalid/default']);
   assert.equal(sent[0].body.embeds[0].title, 'Babble Expert fireworks triggered');
   assert.equal(sent[0].body.embeds[0].fields.find(field => field.name === 'Celebration').value, 'Fireworks', 'older clients retain their known animation');
+  assert.equal(sent[0].body.embeds[0].fields.find(field => field.name === 'Started by').value, 'Not recorded by this Expert version');
+  for (const [trigger, label] of [['completion', 'Finished puzzle automatically'], ['preview', 'Opened celebration preview'], ['replay', 'Clicked replay or Play'], ['reload', 'Reloaded celebration page']]) {
+    const request = new Request('https://example.test/api/babble-notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ event: 'option', item: 'Fireworks', animation: 'curtain', trigger }) });
+    assert.equal((await notify(request, {})).status, 204);
+    assert.equal(sent.at(-1).body.embeds[0].fields.find(field => field.name === 'Started by').value, label);
+  }
+  const badTrigger = new Request('https://example.test/api/babble-notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ event: 'option', item: 'Fireworks', trigger: 'private text' }) });
+  const beforeInvalid = sent.length;
+  assert.equal((await notify(badTrigger, {})).status, 400);
+  assert.equal(sent.length, beforeInvalid);
   const celebrationRequest = animation => new Request('https://example.test/api/babble-notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ event: 'option', item: 'Fireworks replay', animation }) });
   for (const [animation, label] of [['curtain', 'Red stage curtain'], ['message', 'Congratulations message (reduced motion)']]) {
     assert.equal((await notify(celebrationRequest(animation), {})).status, 204);

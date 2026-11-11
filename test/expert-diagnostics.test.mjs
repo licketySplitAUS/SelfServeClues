@@ -75,6 +75,20 @@ test('Discord explains DNS failures while retaining the original code', () => {
     'The website address could not be found (DNS lookup failed).\nERR_NAME_NOT_RESOLVED');
 });
 
+test('update lookup failures and delay/recovery warnings explain the impact without guessing shutdown', () => {
+  const meaning = data => diagnosticMessage({ ...report, ...data }).embeds[0].fields.find(field => field.name === 'What it means').value;
+  assert.match(meaning({ event: 'update-failed', code: 'ERR_UPDATER_INVALID_RELEASE_FEED' }), /could not determine whether an update is available/);
+  assert.match(meaning({ event: 'update-failed', code: 'ERR_HTTP_504' }), /gateway timeout/);
+  assert.match(meaning({ event: 'update-failed', code: 'ERR_UPDATE_ABORTED' }), /can cause this/);
+  assert.match(meaning({ event: 'load-slow', code: undefined }), /delay warning, not a confirmed crash/);
+  assert.match(meaning({ event: 'load-recovered', code: undefined }), /recovery notice, not another failure/);
+  assert.match(meaning({ event: 'unresponsive', code: undefined }), /does not establish a crash/);
+  const impact = reason => diagnosticMessage({ ...report, event: 'update-failed', reason }).embeds[0].fields.find(field => field.name === 'Effect on Expert').value;
+  assert.match(impact('check'), /check did not install an update/);
+  assert.match(impact('download'), /running application has not been replaced/);
+  assert.match(impact('install'), /Check the version/);
+});
+
 test('numeric and named page errors have the same meaning', () => {
   for (const [code, name, meaning] of [
     [-106, 'ERR_INTERNET_DISCONNECTED', /no internet connection/],

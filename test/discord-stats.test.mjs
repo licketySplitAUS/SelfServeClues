@@ -17,6 +17,17 @@ const env = key => ({ DISCORD_STATS_BOT_TOKEN: 'secret-test-token', DISCORD_STAT
 test('new celebration notifications retain the existing Expert celebration totals', () => {
   const data = summarizeMessages([post('Babble Expert celebration triggered'), post('Babble Expert fireworks triggered')], from, to);
   assert.equal(data.groups.find(group => group.cohort === 'unattributed').events['Expert fireworks'], 2);
+  const starts = summarizeMessages([
+    post('Babble Expert celebration triggered', { 'Started by': 'Finished puzzle automatically' }),
+    post('Babble Expert celebration triggered', { 'Started by': 'Opened celebration preview' }),
+    post('Babble Expert celebration triggered', { 'Started by': 'Clicked replay or Play' }),
+    post('Babble Expert celebration triggered', { 'Started by': 'Reloaded celebration page' }),
+    post('Babble Expert fireworks triggered', { Option: 'Fireworks replay' }),
+    post('Babble Expert fireworks triggered', { Option: 'Fireworks', 'Started by': 'private text' }),
+  ], from, to).groups[0];
+  assert.deepEqual(starts.celebrationTriggers, { 'Finished puzzle automatically': 1, 'Opened celebration preview': 1, 'Clicked replay or Play': 1,
+    'Reloaded celebration page': 1, 'Replay (older Expert)': 1, 'Not recorded by this Expert version': 1 });
+  assert.equal(starts.events['Expert fireworks'], 6);
 });
 
 test('dates use Sydney calendar boundaries including both daylight-saving transitions', () => {
@@ -82,9 +93,9 @@ test('equivalent versions and platforms combine, while delayed diagnostics do no
 test('diagnostics separate versions and stages, deduplicate affected IDs, and preserve event and delivery dates', () => {
   const fields = { 'Anonymous user': 'Alias\nBE-ABCD-EFGH', Component: 'updater', Version: '3.3.0.0', 'Stage / reason': 'download', 'Error code': 'ERR_HTTP_503' };
   const messages = [
-    post('Expert update failed', { ...fields, 'Occurred (UTC)': new Date(now - 30000).toISOString(), 'Repeated incidents': '2' }, now - 3000),
-    post('Expert update failed', { ...fields, 'Anonymous user': 'Other\nBE-BCDE-FGHJ', 'Occurred (UTC)': new Date(now - 20000).toISOString() }, now - 2000),
-    post('Expert update failed', { ...fields, 'Occurred (UTC)': new Date(now - 10000).toISOString() }, now - 1000),
+    post('Expert update failed', { ...fields, 'Occurred (UTC)': new Date(now - 30000).toISOString(), 'Repeated incidents': '2', Elapsed: '60.0 seconds', 'Total RAM': '8192 MB', 'OS build': '10.0.19045' }, now - 3000),
+    post('Expert update failed', { ...fields, 'Anonymous user': 'Other\nBE-BCDE-FGHJ', 'Occurred (UTC)': new Date(now - 20000).toISOString(), Elapsed: '999999 seconds', 'Total RAM': '-4 MB', 'OS build': 'private/path' }, now - 2000),
+    post('Expert update failed', { ...fields, 'Occurred (UTC)': new Date(now - 10000).toISOString(), Elapsed: '10.5 seconds', 'Total RAM': '4096 MB', 'OS build': '10.0.22631' }, now - 1000),
     post('Expert update failed', { ...fields, Version: '3.2.12', 'Stage / reason': 'check' }),
     post('Expert update failed', { ...fields, 'Stage / reason': 'install' }),
     post('Expert update failed', { ...fields, 'Stage / reason': 'private exception contents' }),
@@ -98,6 +109,12 @@ test('diagnostics separate versions and stages, deduplicate affected IDs, and pr
     assert.equal(error.lastOccurredAt, new Date(now - 10000).toISOString());
     assert.equal(error.lastReceivedAt, new Date(now - 1000).toISOString());
     assert.match(error.meaning, /temporarily unavailable/);
+    const detail = error.byInstallation['BE-ABCD-EFGH'];
+    assert.deepEqual([detail.count, detail.incidents, detail.timedReports, detail.totalElapsedMs, detail.maxElapsedMs], [2, 3, 2, 70500, 60000]);
+    assert.deepEqual(detail.system, { occurredAt: new Date(now - 10000).toISOString(), memoryMB: 4096, osRelease: '10.0.22631' });
+    assert.equal(error.byInstallation['BE-BCDE-FGHJ'].count, 1);
+    assert.equal(error.byInstallation['BE-BCDE-FGHJ'].timedReports, 0);
+    assert.equal(error.byInstallation['BE-BCDE-FGHJ'].system, undefined);
     assert.doesNotMatch(JSON.stringify(row), /private exception/);
   }
 });
@@ -109,6 +126,15 @@ test('updater and startup error explanations support the next client release wit
   assert.match(diagnosticErrorMeaning('startup-failed', 'ERR_STARTUP_TIMEOUT'), /startup deadline/);
   assert.match(diagnosticErrorMeaning('update-failed', 'ERR_UPDATE_UNKNOWN'), /recognizable technical error/);
   assert.match(diagnosticErrorMeaning('renderer-crashed', -105), /process exit code/);
+  const data = summarizeMessages([
+    post('Page loading unusually slowly', { Component: 'main' }),
+    post('Slow page finished loading', { Component: 'main' }),
+    post('Expert update failed', { Component: 'updater', 'Error code': 'ERR_UPDATER_INVALID_RELEASE_FEED' }),
+  ], from, to);
+  const meanings = Object.values(data.groups[0].errors).map(row => row.meaning);
+  assert.ok(meanings.some(value => value.includes('delay warning, not a confirmed crash')));
+  assert.ok(meanings.some(value => value.includes('recovery notice, not another failure')));
+  assert.ok(meanings.some(value => value.includes('could not determine whether an update is available')));
 });
 
 test('synthetic reports are tests without filtering a real installation just because its alias is Joshua', () => {

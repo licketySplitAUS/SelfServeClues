@@ -24,11 +24,11 @@ app.whenReady().then(async () => {
     message('Babble Expert started', { 'Anonymous user': 'Joshua\nBE-MBQX-QRM7' }),
     message('Babble Expert started', { 'Anonymous user': 'Kevin\nBE-JQ9R-MUWL' }),
     message('Babble Expert session ended', { 'Anonymous user': 'Other\nBE-9D3P-CWUT', 'Time in program': '1h 2m 3s', Version: '3.2.12.0', Platform: 'win32 / x64' }),
-    message('Page could not load', { 'Anonymous user': 'Other\nBE-9D3P-CWUT', Component: 'clues', 'Error code': '-105', 'Repeated incidents': '3', Version: '3.2.11.0', 'Occurred (UTC)': new Date(now - 20000).toISOString() }),
+    message('Page could not load', { 'Anonymous user': 'Other\nBE-9D3P-CWUT', Component: 'clues', 'Error code': '-105', 'Repeated incidents': '3', Version: '3.2.11.0', 'Occurred (UTC)': new Date(now - 20000).toISOString(), Elapsed: '12.5 seconds', 'Total RAM': '4096 MB', 'OS build': '10.0.19045' }),
   ], now - 86400000, now);
   const second = summarizeMessages([
     { ...message('Babble Expert started', { 'Anonymous user': 'Other\nBE-9D3P-CWUT', Version: '3.3.0.0' }), timestamp: new Date(now - 5000).toISOString() },
-    message('Page could not load', { 'Anonymous user': 'Other\nBE-9D3P-CWUT', Component: 'clues', 'Error code': '-105', 'Repeated incidents': '3', Version: '3.2.11.0', 'Occurred (UTC)': new Date(now - 15000).toISOString() }),
+    message('Page could not load', { 'Anonymous user': 'Other\nBE-9D3P-CWUT', Component: 'clues', 'Error code': '-105', 'Repeated incidents': '3', Version: '3.2.11.0', 'Occurred (UTC)': new Date(now - 15000).toISOString(), Elapsed: '42.4 seconds', 'Total RAM': '8192 MB', 'OS build': '10.0.22631' }),
   ], now - 86400000, now);
   for (const summary of [first, second]) for (const group of summary.groups) for (const [id, actor] of Object.entries(group.installations)) actor.name = await resolveAlias(id);
   const playerAlias = await resolveAlias('BE-9D3P-CWUT');
@@ -103,6 +103,10 @@ app.whenReady().then(async () => {
     assert.equal(Object.keys(exported.totals.installations).length, 3, 'Export includes test installations despite the previous filter');
     assert.equal(exported.totals.sessionSeconds, 3723);
     assert.equal(Object.values(exported.totals.errors)[0].incidents, 6);
+    const diagnosticDetail = Object.values(exported.totals.errors)[0].byInstallation['BE-9D3P-CWUT'];
+    assert.deepEqual([diagnosticDetail.count, diagnosticDetail.incidents, diagnosticDetail.timedReports, diagnosticDetail.totalElapsedMs, diagnosticDetail.maxElapsedMs], [2, 6, 2, 54900, 42400]);
+    assert.equal(diagnosticDetail.system.memoryMB, 8192, 'Latest reported system details survive page merging');
+    assert.equal(diagnosticDetail.system.osRelease, '10.0.22631');
     assert.equal(exported.coverage.every(channel => channel.done), true);
     assert.ok(exported.notes.length); assert.ok(exported.exportedAt);
     assert.equal(JSON.stringify(exported).includes('ui-test-key'), false, 'Credentials are never exported');

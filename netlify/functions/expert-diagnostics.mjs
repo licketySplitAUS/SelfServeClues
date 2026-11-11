@@ -39,10 +39,19 @@ export function diagnosticMessage(data) {
   if (typeof data.window === 'string' && Object.hasOwn(windows, data.window)) fields.push({ name: 'Window', value: windows[data.window], inline: true });
   if (Number.isInteger(data.memoryMB) && data.memoryMB > 0 && data.memoryMB <= 16777216) fields.push({ name: 'Total RAM', value: `${data.memoryMB} MB`, inline: true });
   if (reasons.has(data.reason)) fields.push({ name: 'Stage / reason', value: data.reason, inline: true });
+  if (data.event === 'update-failed') {
+    const impact = {
+      check: 'Expert could not check whether a newer version is available. This check did not install an update.',
+      download: 'Expert could not finish downloading the update. The running application has not been replaced by this download.',
+      install: 'Expert could not start or complete the installation step. Check the version shown in Expert after reopening it.',
+    };
+    if (Object.hasOwn(impact, data.reason)) fields.push({ name: 'Effect on Expert', value: impact[data.reason], inline: false });
+  }
   if ((Number.isInteger(data.code) && Math.abs(data.code) < 1000000) || (typeof data.code === 'string' && /^(?:ERR_[A-Z0-9_]{1,60}|E[A-Z]{2,20})$/.test(data.code))) {
     fields.push({ name: 'Error code', value: String(data.code), inline: true });
     fields.push({ name: 'What it means', value: diagnosticErrorMeaning(data.event, data.code), inline: false });
   }
+  else if (['load-slow', 'load-recovered', 'unresponsive', 'responsive'].includes(data.event)) fields.push({ name: 'What it means', value: diagnosticErrorMeaning(data.event), inline: false });
   if (Number.isFinite(data.elapsedMs) && data.elapsedMs >= 0 && data.elapsedMs <= 86400000) fields.push({ name: 'Elapsed', value: `${(data.elapsedMs / 1000).toFixed(1)} seconds`, inline: true });
   if (version(data.targetVersion)) fields.push({ name: 'Update target', value: data.targetVersion, inline: true });
   if (Number.isInteger(data.count) && data.count > 1 && data.count <= 9999) fields.push({ name: 'Repeated incidents', value: String(data.count), inline: true });

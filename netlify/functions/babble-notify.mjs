@@ -4,7 +4,7 @@ import { resolveInstallationAlias } from '../lib/alias-registry.mjs';
 import { pageCounterField, readPageCount } from '../lib/page-counter-field.mjs';
 import { getStore, getDeployStore } from '@netlify/blobs';
 import { diagnosticDelivery } from '../lib/diagnostic-delivery.mjs';
-import { celebrationNames, validAnimation } from '../lib/celebration-names.mjs';
+import { celebrationNames, validAnimation, celebrationTriggers, validCelebrationTrigger } from '../lib/celebration-names.mjs';
 
 const json = (body, status = 200) => Response.json(body, {
   status,
@@ -42,6 +42,7 @@ export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), s
 
   const fireworks = ['resource', 'option'].includes(data.event) && /^Fireworks(?: replay)?$/i.test(String(data.item || '').trim());
   if (fireworks && data.animation !== undefined && !validAnimation(data.animation)) return json({ error: 'Invalid animation' }, 400);
+  if (fireworks && data.trigger !== undefined && !validCelebrationTrigger(data.trigger)) return json({ error: 'Invalid celebration trigger' }, 400);
   if (!productionNotifications()) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
   const webhookUrl = (fireworks ? env('DISCORD_FIREWORKS_WEBHOOK_URL') : data.event === 'upgrade' ? env('DISCORD_UPGRADE_WEBHOOK_URL')
     : data.event === 'install' ? env('DISCORD_NEW_USER_WEBHOOK_URL')
@@ -95,6 +96,7 @@ export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), s
     fields.push(await pageCounterField(readCount));
   }
   if (fireworks) fields.push({ name: 'Celebration', value: celebrationNames[data.animation || 'fireworks'], inline: true });
+  if (fireworks) fields.push({ name: 'Started by', value: data.trigger ? celebrationTriggers[data.trigger] : /replay/i.test(data.item) ? 'Replay (older Expert)' : 'Not recorded by this Expert version', inline: true });
 
   const message = {
     username: "Babble Expert",

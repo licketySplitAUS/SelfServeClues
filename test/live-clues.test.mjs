@@ -2,6 +2,52 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { versionResponse } from '../netlify/functions/clues-version.mjs';
 import { watchClueUpdates, reconcileFound } from '../shared/live-clues.mjs';
+import { createHandler as currentHandler } from '../netlify/functions/history-current.mjs';
+
+test('prepared clues read skips imported history and solver initialization, keeps monitor/context and follows publication changes', async () => {
+  let key = 'snapshots/one', reads = 0;
+  const repo = { control: async () => ({ value: { snapshotKey: key, lastCheck: 'checked', message: 'Ready', candidate: null } }),
+    read: async requested => { reads++; assert.equal(requested, key); return { generation: requested }; } };
+  const handler = currentHandler({ repository: () => repo, loadImported: () => assert.fail('A prepared snapshot must not load the imported dictionary/history') });
+  const request = () => new Request('https://example.test/history-api/current');
+  const first = await handler(request(), { deploy: { context: 'production' } });
+  const data = await first.json();
+  assert.equal(data.generation, 'snapshots/one'); assert.equal(data.deploymentContext, 'production');
+  assert.deepEqual(data.monitor, { lastCheck: 'checked', message: 'Ready', candidate: null });
+  assert.equal(first.headers.get('cache-control'), 'public, max-age=30');
+  assert.equal(first.headers.get('netlify-cdn-cache-control'), 'public, durable, max-age=60');
+  key = 'snapshots/two'; assert.equal((await (await handler(request(), {})).json()).generation, key);
+  assert.equal(reads, 2);
+});
+
+test('current clues fallback is lazy, errors stay uncacheable and unsupported methods do no storage work', async t => {
+  let imports = 0, controls = 0, fail = false;
+  const handler = currentHandler({ repository: () => ({ control: async () => { controls++; if (fail) throw Error('private storage failure'); return { value: null }; } }),
+    loadImported: async () => { imports++; return { source: 'import', generation: 'baseline' }; } });
+  assert.equal((await handler(new Request('https://example.test/history-api/current', { method: 'POST' }), {})).status, 405);
+  assert.equal(controls, 0); assert.equal(imports, 0);
+  const data = await (await handler(new Request('https://example.test/history-api/current'), {})).json();
+  assert.equal(data.source, 'import'); assert.equal(imports, 1);
+  assert.deepEqual(data.monitor, { lastCheck: null, message: null, candidate: null });
+  fail = true; t.mock.method(console, 'error', () => {});
+  const response = await handler(new Request('https://example.test/history-api/current'), {});
+  assert.equal(response.status, 503); assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.doesNotMatch(await response.text(), /private/); assert.equal(imports, 1);
+});
+
+test('real imported fallback matches the mutation service fallback, and a missing published snapshot is not replaced silently', async t => {
+  const [{ importedSnapshot }, { loadBaseline }, { makeService }] = await Promise.all([
+    import('../netlify/lib/history/current.mjs'), import('../netlify/lib/history/baseline.mjs'), import('../netlify/lib/history/service.mjs'),
+  ]);
+  const service = makeService({ baseline: await loadBaseline(), repo: { control: async () => ({ value: null }) } });
+  const { monitor, ...expected } = await service.current();
+  assert.deepEqual(await importedSnapshot(), expected);
+  t.mock.method(console, 'error', () => {});
+  const handler = currentHandler({ repository: () => ({ control: async () => ({ value: { snapshotKey: 'missing' } }), read: async () => { throw Error('unavailable'); } }),
+    loadImported: () => assert.fail('A failed published read must not silently switch to imported history') });
+  const result = await handler(new Request('https://example.test/history-api/current'), {});
+  assert.equal(result.status, 503); assert.equal(result.headers.get('cache-control'), 'no-store');
+});
 test('tiny version endpoint reads only the pointer, supports conditional requests, and ignores monitor changes', async () => {
   let control = { generation: 'published-1', snapshotKey: 'large-snapshot', lastCheck: 'now' }, reads = 0;
   const repo = { control: async () => { reads++; return { value: control }; }, read() { assert.fail('Version checks never read snapshots or history'); } };

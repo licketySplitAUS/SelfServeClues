@@ -1,5 +1,6 @@
 import { anonymousAlias } from './anonymous-alias.mjs';
 import { diagnosticErrorMeaning } from './diagnostic-errors.mjs';
+import { celebrationTriggers } from './celebration-names.mjs';
 
 export const reportingChannels = Object.freeze([
   ['upgrades', '1561810196253376582'], ['flip', '1561810287492079778'], ['new-user', '1561810718519599134'],
@@ -95,7 +96,7 @@ function durationSeconds(value) {
 }
 function group(cohort) {
   return { cohort, posts: 0, reports: 0, sessionSeconds: 0, measuredSessions: 0, diagnosticIncidents: 0,
-    installations: {}, browsers: [], events: {}, days: {}, hours: Array(24).fill(0), versions: {}, platforms: {}, countries: {}, features: {}, errors: {} };
+    installations: {}, browsers: [], events: {}, days: {}, hours: Array(24).fill(0), versions: {}, platforms: {}, countries: {}, features: {}, celebrationTriggers: {}, errors: {} };
 }
 const add = (table, key, amount = 1) => {
   if (key) Object.defineProperty(table, key, { value: (Object.hasOwn(table, key) ? table[key] : 0) + amount, enumerable: true, writable: true, configurable: true });
@@ -145,6 +146,10 @@ export function summarizeMessages(messages, from, to) {
     add(row.platforms, normalizedPlatform(fields.get('Platform'))); add(row.countries, clean(fields.get('Country')));
     const feature = fields.get('Resource') || fields.get('Option');
     if (feature) add(row.features, `${event}: ${clean(feature, 80)}`);
+    if (event === 'Expert fireworks') {
+      const label = fields.get('Started by');
+      add(row.celebrationTriggers, Object.values(celebrationTriggers).includes(label) ? label : /replay/i.test(feature || '') ? 'Replay (older Expert)' : 'Not recorded by this Expert version');
+    }
     if (event === 'Sessions') {
       const seconds = durationSeconds(fields.get('Time in program'));
       if (seconds !== null) {
@@ -161,13 +166,36 @@ export function summarizeMessages(messages, from, to) {
       const reason = fields.get('Stage / reason');
       const safeReason = ['exception', 'timeout', 'check', 'download', 'install', 'clean-exit', 'abnormal-exit', 'killed', 'crashed', 'oom', 'launch-failed', 'integrity-failure', 'memory-eviction', 'unknown'].includes(reason) ? reason : '';
       const key = `${title} · ${component}${version ? ' · v' + version : ''}${safeReason ? ' · ' + safeReason : ''}${rawCode ? ' · ' + clean(rawCode, 65) : ''}`;
-      const errorEvent = ({ 'Page could not load': 'load-failed', 'Page renderer stopped': 'renderer-crashed', 'Expert update failed': 'update-failed', 'Expert could not start': 'startup-failed' })[title] || 'unknown';
+      const errorEvent = ({ 'Page could not load': 'load-failed', 'Page renderer stopped': 'renderer-crashed', 'Expert update failed': 'update-failed', 'Expert could not start': 'startup-failed',
+        'Page loading unusually slowly': 'load-slow', 'Slow page finished loading': 'load-recovered', 'Page stopped responding': 'unresponsive', 'Page responding again': 'responsive' })[title] || 'unknown';
       const kind = /^Diagnostics connection test/i.test(title) ? 'test' : /^(?:Page responding again|Slow page finished loading)/i.test(title) ? 'recovery' : 'problem';
       if (!Object.hasOwn(row.errors, key)) row.errors[key] = { count: 0, incidents: 0, kind, installations: [], firstOccurredAt: observedAt, lastOccurredAt: observedAt, lastReceivedAt: new Date(time).toISOString(),
-        meaning: rawCode ? diagnosticErrorMeaning(errorEvent, code).split('\n')[0] : kind === 'recovery' ? 'Recovery notice; not a new failure.' : kind === 'test' ? 'Synthetic connection test.' : 'No error code was supplied.' };
+        meaning: rawCode || ['load-slow', 'load-recovered', 'unresponsive', 'responsive'].includes(errorEvent) ? diagnosticErrorMeaning(errorEvent, code).split('\n')[0] : kind === 'recovery' ? 'Recovery notice; not a new failure.' : kind === 'test' ? 'Synthetic connection test.' : 'No error code was supplied.' };
       const error = row.errors[key];
       error.count++; error.incidents += incidents;
       if (id && !error.installations.includes(id)) error.installations.push(id);
+      if (id) {
+        // Retain only reported, allowlisted measurements. Group-level counts
+        // cannot tell us how often each installation encountered the problem.
+        error.byInstallation ||= {};
+        const detail = error.byInstallation[id] ||= { count: 0, incidents: 0, firstOccurredAt: observedAt, lastOccurredAt: observedAt,
+          lastReceivedAt: new Date(time).toISOString(), timedReports: 0, totalElapsedMs: 0, maxElapsedMs: 0 };
+        detail.count++; detail.incidents += incidents;
+        if (observedAt < detail.firstOccurredAt) detail.firstOccurredAt = observedAt;
+        if (observedAt > detail.lastOccurredAt) detail.lastOccurredAt = observedAt;
+        if (new Date(time).toISOString() > detail.lastReceivedAt) detail.lastReceivedAt = new Date(time).toISOString();
+        const elapsed = fields.get('Elapsed')?.match(/^(\d+(?:\.\d+)?) seconds$/);
+        if (elapsed && Number(elapsed[1]) <= 86400) {
+          const ms = Math.round(Number(elapsed[1]) * 1000);
+          detail.timedReports++; detail.totalElapsedMs += ms; detail.maxElapsedMs = Math.max(detail.maxElapsedMs, ms);
+        }
+        const memory = fields.get('Total RAM')?.match(/^(\d{1,8}) MB$/), osRelease = fields.get('OS build');
+        const memoryMB = memory && Number(memory[1]) > 0 && Number(memory[1]) <= 16777216 ? Number(memory[1]) : undefined;
+        const safeOs = typeof osRelease === 'string' && /^[\d.]{1,32}$/.test(osRelease) ? osRelease : undefined;
+        if ((memoryMB || safeOs) && (!detail.system || observedAt > detail.system.occurredAt)) detail.system = {
+          occurredAt: observedAt, ...(memoryMB ? { memoryMB } : {}), ...(safeOs ? { osRelease: safeOs } : {}),
+        };
+      }
       if (observedAt < error.firstOccurredAt) error.firstOccurredAt = observedAt;
       if (observedAt > error.lastOccurredAt) error.lastOccurredAt = observedAt;
       if (new Date(time).toISOString() > error.lastReceivedAt) error.lastReceivedAt = new Date(time).toISOString();

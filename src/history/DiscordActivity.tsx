@@ -3,10 +3,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 type Cohort = 'regular' | 'test' | 'unattributed';
 type Counts = Record<string, number>;
 type Installation = { name: string; posts: number; latestVersion?: string; versionAt?: string; lastSeenAt?: string; sessions?: number; sessionSeconds?: number };
-type Diagnostic = { count: number; incidents: number; meaning: string; kind: 'problem' | 'recovery' | 'test'; installations?: string[]; firstOccurredAt?: string; lastOccurredAt?: string; lastReceivedAt?: string };
+type InstallationDiagnostic = { count: number; incidents: number; firstOccurredAt?: string; lastOccurredAt?: string; lastReceivedAt?: string;
+  timedReports: number; totalElapsedMs: number; maxElapsedMs: number; system?: { occurredAt: string; memoryMB?: number; osRelease?: string } };
+type Diagnostic = { count: number; incidents: number; meaning: string; kind: 'problem' | 'recovery' | 'test'; installations?: string[]; firstOccurredAt?: string; lastOccurredAt?: string; lastReceivedAt?: string; byInstallation?: Record<string, InstallationDiagnostic> };
 type Group = { cohort: Cohort; posts: number; reports: number; sessionSeconds: number; measuredSessions: number; diagnosticIncidents: number;
   installations: Record<string, Installation>; browsers: string[]; events: Counts; days: Counts; hours: number[];
-  versions: Counts; platforms: Counts; countries: Counts; features: Counts; errors: Record<string, Diagnostic> };
+  versions: Counts; platforms: Counts; countries: Counts; features: Counts; celebrationTriggers?: Counts; errors: Record<string, Diagnostic> };
 type Channel = { id: string; name: string };
 type Connection = { bot: string; channels: (Channel & { readable: boolean; state: string; message: string })[] };
 type Start = { range: { from: string; to: string; timeZone: string }; channels: Channel[]; testInstallations: { id: string; name: string; device: string }[]; generatedAt: string };
@@ -18,6 +20,19 @@ const sumCounts = (a: Counts, b: Counts) => {
 };
 const earlier = (a?: string, b?: string) => !a ? b : !b ? a : a < b ? a : b;
 const later = (a?: string, b?: string) => !a ? b : !b ? a : a > b ? a : b;
+function mergeDiagnosticInstallations(a: Record<string, InstallationDiagnostic> = {}, b: Record<string, InstallationDiagnostic> = {}) {
+  const result = { ...a };
+  for (const [id, detail] of Object.entries(b)) {
+    const previous = result[id];
+    result[id] = { ...detail, count: (previous?.count || 0) + detail.count, incidents: (previous?.incidents || 0) + detail.incidents,
+      timedReports: (previous?.timedReports || 0) + detail.timedReports, totalElapsedMs: (previous?.totalElapsedMs || 0) + detail.totalElapsedMs,
+      maxElapsedMs: Math.max(previous?.maxElapsedMs || 0, detail.maxElapsedMs),
+      firstOccurredAt: earlier(previous?.firstOccurredAt, detail.firstOccurredAt), lastOccurredAt: later(previous?.lastOccurredAt, detail.lastOccurredAt),
+      lastReceivedAt: later(previous?.lastReceivedAt, detail.lastReceivedAt),
+      system: (previous?.system?.occurredAt || '') > (detail.system?.occurredAt || '') ? previous?.system : detail.system };
+  }
+  return result;
+}
 function merge(a: Group, b: Group): Group {
   const installations = { ...a.installations }, errors = { ...a.errors };
   for (const [id, actor] of Object.entries(b.installations)) {
@@ -30,12 +45,14 @@ function merge(a: Group, b: Group): Group {
   for (const [key, error] of Object.entries(b.errors)) Object.defineProperty(errors, key, { value: { ...error, count: (Object.hasOwn(errors, key) ? errors[key].count : 0) + error.count,
     incidents: (Object.hasOwn(errors, key) ? errors[key].incidents : 0) + error.incidents,
     installations: [...new Set([...(errors[key]?.installations || []), ...(error.installations || [])])],
+    byInstallation: mergeDiagnosticInstallations(errors[key]?.byInstallation, error.byInstallation),
     firstOccurredAt: earlier(errors[key]?.firstOccurredAt, error.firstOccurredAt), lastOccurredAt: later(errors[key]?.lastOccurredAt, error.lastOccurredAt),
     lastReceivedAt: later(errors[key]?.lastReceivedAt, error.lastReceivedAt) }, enumerable: true, configurable: true, writable: true });
   return { ...a, posts: a.posts + b.posts, reports: a.reports + b.reports, sessionSeconds: a.sessionSeconds + b.sessionSeconds,
     measuredSessions: a.measuredSessions + b.measuredSessions, diagnosticIncidents: a.diagnosticIncidents + b.diagnosticIncidents, installations,
     browsers: [...new Set([...a.browsers, ...b.browsers])], hours: a.hours.map((count, hour) => count + b.hours[hour]), errors,
     events: sumCounts(a.events, b.events), days: sumCounts(a.days, b.days), versions: sumCounts(a.versions, b.versions),
+    celebrationTriggers: sumCounts(a.celebrationTriggers || {}, b.celebrationTriggers || {}),
     platforms: sumCounts(a.platforms, b.platforms), countries: sumCounts(a.countries, b.countries), features: sumCounts(a.features, b.features) };
 }
 const empty = (): Group => ({ cohort: 'unattributed', posts: 0, reports: 0, sessionSeconds: 0, measuredSessions: 0, diagnosticIncidents: 0,
@@ -123,6 +140,8 @@ export default function DiscordActivity({ adminKey }: { adminKey: string }) {
               'Groups separate regular, test and unattributed activity. Totals include all groups. Installation and browser counts are separate and do not count distinct people.',
               'App-open time includes idle, background and sleep time; it is not active solving time. Post counts measure reporting frequency.',
               'Diagnostic incidents are client-reported occurrences, not verified unique failures. Delayed diagnostics use occurrence times; days and hours count message arrival in Sydney time.',
+              'Diagnostic byInstallation entries give per-installation counts and reported timings, RAM and OS build. Older cached summaries can lack these entries; missing measurements are unknown. Timings count measured reports, not each repeated incident. OS build alone does not reliably distinguish Windows 10 from Windows 11.',
+              'Expert celebration post totals include automatic completions, manual previews, replays and page reloads. celebrationTriggers separates known causes; unlabelled older starts must not be counted as confirmed puzzle completions.',
             ],
             ...current, totals: current.groups.reduce(merge, empty()),
           };
@@ -166,6 +185,7 @@ export default function DiscordActivity({ adminKey }: { adminKey: string }) {
       <p className="discord-note">{n(totals.measuredSessions)} of {n(totals.events.Sessions || 0)} session reports have a readable duration. App-open time includes idle, background and sleep time; it is not active solving time. Sessions are attributed to the day their closing report arrived, even if they began earlier.</p>
       <p className="discord-note">Test installs: {report.testInstallations.map(test => `${test.name} (${test.device}) ${test.id}`).join(' · ')}. Exact known synthetic test labels are also filtered. Browser-only and system posts cannot be linked to an Expert installation. Installation and browser counts are separate, and do not represent distinct people. Post volume measures reporting frequency, not time played. First-name aliases are reserved per installation and shared by reporting and diagnostics.</p>
       <CountsTable title="Post types" counts={totals.events} />
+      <CountsTable title="Celebration starts" counts={totals.celebrationTriggers || {}} />
       <details open><summary>Posts by day</summary>{days.length ? <table className="discord-days"><thead><tr><th>Date (Sydney)</th><th>Posts</th></tr></thead><tbody>{days.map(([day, count]) => <tr key={day}><th scope="row">{day}</th><td><span className="discord-bar" style={{ width: `${count / maxDay * 75}%` }} aria-hidden="true" />{n(count)}</td></tr>)}</tbody></table> : <p>No posts in this selection.</p>}</details>
       <details><summary>Posts by channel</summary><table><thead><tr><th>Channel</th><th>Posts</th><th>Coverage</th></tr></thead><tbody>{report.coverage.map(channel => <tr key={channel.id}><th scope="row">#{channel.name}</th><td>{n(Object.entries(channel.counts).filter(([cohort]) => selected(cohort)).reduce((total, [, count]) => total + count, 0))}</td><td>{channel.error || (channel.done ? 'Complete' : 'Partial')}</td></tr>)}</tbody></table></details>
       <details open><summary>Latest reported version by installation</summary><p>One version per identified installation, based on its latest dated version report in this period. Delayed diagnostics use their occurrence time. This does not confirm which version is installed now; unreported activity is unknown.</p><CountsTable title="Installation versions" counts={installationVersions} versions unit="Installations" /></details>
