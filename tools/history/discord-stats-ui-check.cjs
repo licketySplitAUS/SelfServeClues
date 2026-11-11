@@ -32,7 +32,7 @@ app.whenReady().then(async () => {
   ], now - 86400000, now);
   for (const summary of [first, second]) for (const group of summary.groups) for (const [id, actor] of Object.entries(group.installations)) actor.name = await resolveAlias(id);
   const playerAlias = await resolveAlias('BE-9D3P-CWUT');
-  let mode = 'normal', pages = 0;
+  let mode = 'normal', pages = 0, requestedPeriod;
   const server = previewServer(), staticRequest = server.listeners('request')[0];
   server.removeAllListeners('request');
   server.on('request', async (req, res) => {
@@ -42,11 +42,12 @@ app.whenReady().then(async () => {
     if (req.headers['x-admin-key'] !== 'ui-test-key') return json({ error: 'Wrong key' }, 403);
     const action = url.searchParams.get('action');
     if (action === 'connection') return json({ bot: 'Lickety Statistics', channels: channels.map(channel => ({ ...channel, readable: true, state: 'ready', message: 'History readable' })) });
-    if (action === 'start') { pages = 0; return json({ range: { from: new Date(now - 86400000).toISOString(), to: new Date(now).toISOString(), timeZone: 'Australia/Sydney' }, generatedAt: new Date(now).toISOString(), channels, testInstallations }); }
+    if (action === 'start') { requestedPeriod = url.searchParams.get('period'); pages = 0; return json({ range: { from: new Date(now - 86400000).toISOString(), to: new Date(now).toISOString(), timeZone: 'Australia/Sydney' }, generatedAt: new Date(now).toISOString(), channels, testInstallations }); }
+    if (mode === 'partial' && url.searchParams.get('channel') === channels[1].id) return json({ error: 'Channel unavailable', channelError: true }, 403);
     pages++;
     if (mode === 'rate' && pages === 2) return json({ error: 'Please wait', retryAfter: 1 }, 429);
     if (mode === 'stop' && pages === 2) await sleep(2000);
-    const done = mode === 'normal' || (mode === 'rate' && pages > 2);
+    const done = mode === 'normal' || mode === 'partial' || (mode === 'rate' && pages > 2);
     return json({ ...(url.searchParams.get('channel') === channels[0].id ? first : second), done, nextBefore: done ? null : '1561810196253376582', cached: false });
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -93,13 +94,31 @@ app.whenReady().then(async () => {
     mode = 'rate'; await click('Generate statistics'); await until(`document.querySelector('.discord-activity [role=status]').textContent.includes('resume automatically')`);
     await until(`document.querySelector('.discord-activity [role=status]').textContent==='Report complete.'`);
     assert.equal(await metric('Discord posts'), '10', 'Retrying a rate-limited page does not duplicate its counts');
-    mode = 'stop'; await click('Generate statistics'); await until(`document.querySelector('.discord-metrics').textContent.includes('Discord posts4')`);
+    await run(`window.downloads=[]; URL.createObjectURL=blob=>{window.downloads.push({blob});return 'blob:fixture';}; URL.revokeObjectURL=()=>{}; HTMLAnchorElement.prototype.click=function(){window.downloads.at(-1).filename=this.download;}; void 0;`);
+    await selectAudience('tests');
+    mode = 'normal'; await click('Download all activity history'); await until(`document.querySelector('.discord-activity [role=status]').textContent.startsWith('All activity history downloaded.')`);
+    assert.equal(requestedPeriod, 'all', 'Export overrides the selected period');
+    const exported = await run(`window.downloads[0].blob.text().then(JSON.parse)`);
+    assert.equal(exported.complete, true); assert.equal(exported.totals.posts, 6);
+    assert.equal(Object.keys(exported.totals.installations).length, 3, 'Export includes test installations despite the previous filter');
+    assert.equal(exported.totals.sessionSeconds, 3723);
+    assert.equal(Object.values(exported.totals.errors)[0].incidents, 6);
+    assert.equal(exported.coverage.every(channel => channel.done), true);
+    assert.ok(exported.notes.length); assert.ok(exported.exportedAt);
+    assert.equal(JSON.stringify(exported).includes('ui-test-key'), false, 'Credentials are never exported');
+    assert.match(await run(`window.downloads[0].filename`), /^babble-discord-activity-all-.*\.json$/);
+    mode = 'partial'; await click('Download all activity history'); await until(`document.querySelector('.discord-activity [role=status]').textContent.startsWith('Partial activity history downloaded.')`);
+    const partial = await run(`window.downloads[1].blob.text().then(JSON.parse)`);
+    assert.equal(partial.complete, false); assert.equal(partial.coverage[1].error, 'Channel unavailable');
+    assert.match(await run(`window.downloads[1].filename`), /^babble-discord-activity-partial-/);
+    mode = 'stop'; await click('Download all activity history'); await until(`document.querySelector('.discord-activity [role=status]').textContent.includes('1 history pages read')`);
     await click('Stop'); await until(`document.querySelector('.discord-activity [role=status]').textContent.startsWith('Stopped.')`);
     assert.ok(await run(`document.querySelector('.discord-activity').textContent.includes('Partial report')`));
     assert.equal(await metric('Discord posts'), '4');
+    assert.equal(await run(`window.downloads.length`), 2, 'Stopped exports do not download a misleading file');
     await run(`Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(document.querySelector('input[type=password]'),''); document.querySelector('input[type=password]').dispatchEvent(new Event('input',{bubbles:true}));`);
     await until(`!document.querySelector('.discord-metrics')`);
-    console.log('PASS: admin lock, bot check, pagination and merging, test filters, rate-limit retry, Stop/partial report, credential clearing, desktop/mobile layout. Screenshots: ' + out);
+    console.log('PASS: admin lock, bot check, pagination and merging, test filters, rate-limit retry, complete/partial JSON exports, Stop without download, credential clearing, desktop/mobile layout. Screenshots: ' + out);
     win.destroy(); server.close(); clearTimeout(deadline); app.exit(0);
   } catch (error) { console.error(error); server.close(); app.exit(1); }
 }).catch(error => { console.error(error); app.exit(1); });

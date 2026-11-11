@@ -70,13 +70,14 @@ export default function DiscordActivity({ adminKey }: { adminKey: string }) {
     if (!response.ok) throw Object.assign(new Error(data.error || 'Statistics request failed.'), { retryAfter: Number(data.retryAfter || response.headers.get('retry-after')), channelError: data.channelError });
     return data;
   }
-  async function run(check = false) {
+  async function run(check = false, download = false) {
     const controller = new AbortController(); active.current?.abort(); active.current = controller;
     const signal = controller.signal;
     setBusy(true); setError(''); setStatus(check ? 'Checking bot and channel access…' : 'Starting report…');
     try {
       if (check) { setConnection(await get(new URLSearchParams({ action: 'connection' }), signal)); setStatus('Connection check finished.'); return; }
-      const settings: Start = await get(new URLSearchParams({ action: 'start', period, start, end }), signal);
+      if (download) { setPeriod('all'); setAudience('all'); }
+      const settings: Start = await get(new URLSearchParams({ action: 'start', period: download ? 'all' : period, start: download ? '' : start, end: download ? '' : end }), signal);
       const current: Report = { ...settings, groups: [], coverage: settings.channels.map(channel => ({ ...channel, done: false, error: '', counts: {} })), hiddenReports: 0, pages: 0, cachedPages: 0, complete: false };
       setReport(structuredClone(current));
       for (const channel of current.coverage) {
@@ -111,7 +112,27 @@ export default function DiscordActivity({ adminKey }: { adminKey: string }) {
         }
       }
       if (!signal.aborted) { current.complete = current.coverage.every(channel => channel.done); setReport(structuredClone(current));
-        setStatus(current.complete ? 'Report complete.' : 'Report finished with unavailable channels. Counts cover the history read successfully.'); }
+        setStatus(current.complete ? 'Report complete.' : 'Report finished with unavailable channels. Counts cover the history read successfully.');
+        if (download) {
+          const exportedAt = new Date().toISOString();
+          const file = {
+            schemaVersion: 1, exportedAt, description: 'All available Discord activity summaries, including regular, test and unattributed activity.',
+            notes: [
+              'Includes messages still present in configured reporting channels up to the report cutoff. This is an activity summary, not a raw message archive; contact-message contents are excluded.',
+              'Check complete, coverage and hiddenReports before drawing conclusions. Unavailable channels and unreadable posts can leave incomplete statistics.',
+              'Groups separate regular, test and unattributed activity. Totals include all groups. Installation and browser counts are separate and do not count distinct people.',
+              'App-open time includes idle, background and sleep time; it is not active solving time. Post counts measure reporting frequency.',
+              'Diagnostic incidents are client-reported occurrences, not verified unique failures. Delayed diagnostics use occurrence times; days and hours count message arrival in Sydney time.',
+            ],
+            ...current, totals: current.groups.reduce(merge, empty()),
+          };
+          const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2) + '\n'], { type: 'application/json' }));
+          const link = document.createElement('a');
+          link.href = url; link.download = `babble-discord-activity-${current.complete ? 'all' : 'partial'}-${exportedAt.replace(/[:.]/g, '-')}.json`;
+          document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+          setStatus(current.complete ? 'All activity history downloaded. You can upload the JSON file for review.' : 'Partial activity history downloaded. Some channels were unavailable; see the coverage warnings in the file.');
+        }
+      }
     } catch (problem) {
       if (active.current !== controller) return;
       if (signal.aborted) setStatus('Stopped. Results below cover only the pages already read.');
@@ -132,7 +153,8 @@ export default function DiscordActivity({ adminKey }: { adminKey: string }) {
     <div className="discord-controls"><label>Period<select value={period} disabled={busy} onChange={event => setPeriod(event.target.value)}><option value="today">Today</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="all">All available history</option><option value="custom">Custom dates</option></select></label>
       {period === 'custom' && <><label>From<input type="date" value={start} disabled={busy} onChange={event => setStart(event.target.value)} /></label><label>Through<input type="date" value={end} disabled={busy} onChange={event => setEnd(event.target.value)} /></label></>}
       <label>Activity<select value={audience} onChange={event => setAudience(event.target.value)}><option value="exclude-tests">Exclude test installs</option><option value="tests">Test installs only</option><option value="all">All activity</option></select></label></div>
-    <div className="actions"><button disabled={!adminKey || busy} onClick={() => void run()}>Generate statistics</button><button disabled={!adminKey || busy} onClick={() => void run(true)}>Check bot connection</button>{busy && <button onClick={() => active.current?.abort()}>Stop</button>}</div>
+    <div className="actions"><button disabled={!adminKey || busy} onClick={() => void run()}>Generate statistics</button><button disabled={!adminKey || busy} onClick={() => void run(false, true)}>Download all activity history</button><button disabled={!adminKey || busy} onClick={() => void run(true)}>Check bot connection</button>{busy && <button onClick={() => active.current?.abort()}>Stop</button>}</div>
+    <p className="discord-note">Download reads all available history and includes test activity, regardless of the filters above. It saves a JSON summary with full installation and diagnostic tables for review; contact-message contents are excluded.</p>
     <p role="status" aria-live="polite">{!adminKey ? 'Enter your admin key above to begin.' : status}</p>{error && <p role="alert">{error}</p>}
     {connection && <details open><summary>Bot connection: {connection.bot}</summary><table><thead><tr><th>Channel</th><th>Access</th></tr></thead><tbody>{connection.channels.map(channel => <tr key={channel.id}><th scope="row">#{channel.name}</th><td>{channel.message}</td></tr>)}</tbody></table></details>}
     {report && <>
