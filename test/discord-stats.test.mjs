@@ -15,8 +15,8 @@ const request = (params = {}, headers = {}) => new Request('https://selfserve.r4
 const env = key => ({ DISCORD_STATS_BOT_TOKEN: 'secret-test-token', DISCORD_STATS_CHANNEL_IDS: channel.id })[key];
 
 test('new celebration notifications retain the existing Expert celebration totals', () => {
-  const data = summarizeMessages([post('Babble Expert celebration triggered'), post('Babble Expert fireworks triggered')], from, to);
-  assert.equal(data.groups.find(group => group.cohort === 'unattributed').events['Expert fireworks'], 2);
+  const data = summarizeMessages([post('Babble Expert celebration triggered'), post('Babble Expert fireworks triggered'), post('Magic paintbrush — Babble Expert celebration')], from, to);
+  assert.equal(data.groups.find(group => group.cohort === 'unattributed').events['Expert fireworks'], 3);
   const starts = summarizeMessages([
     post('Babble Expert celebration triggered', { 'Started by': 'Finished puzzle automatically' }),
     post('Babble Expert celebration triggered', { 'Started by': 'Opened celebration preview' }),

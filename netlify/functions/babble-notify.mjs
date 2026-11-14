@@ -106,7 +106,7 @@ export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), s
     username: "Babble Expert",
     allowed_mentions: { parse: [] },
     embeds: [{
-      title: fireworks ? (data.animation && data.animation !== 'fireworks' ? 'Babble Expert celebration triggered' : 'Babble Expert fireworks triggered') : titles[data.event],
+      title: fireworks ? `${celebrationNames[data.animation || 'fireworks']} — Babble Expert celebration` : titles[data.event],
       color: fireworks ? 0xffc857 : colors[data.event],
       fields,
       timestamp: new Date().toISOString(),

@@ -68,7 +68,7 @@ const events = [
   [/^New Babble Expert user$/i, 'Installs'], [/^Babble Expert upgraded$/i, 'Upgrades'],
   [/^Babble Expert started$/i, 'Starts'], [/^Babble Expert session ended$/i, 'Sessions'],
   [/^Babble Expert resource opened$/i, 'Resources'], [/^Babble Expert option used$/i, 'Options'],
-  [/^Babble Expert (?:fireworks|celebration) triggered$/i, 'Expert fireworks'], [/^Clues completed/i, 'Clues completions'],
+  [/^(?:Babble Expert (?:fireworks|celebration) triggered|.+ — Babble Expert celebration)$/i, 'Expert fireworks'], [/^Clues completed/i, 'Clues completions'],
   [/^Babble Expert information page visited$/i, 'Guide visits'], [/^A message for lickety$/i, 'Contact messages'],
   [/^Babble preview:/i, 'Puzzle updates'], [/backup/i, 'Backup alerts'],
   [/^(?:Page could not load|Page loading unusually slowly|Slow page finished loading|Page renderer stopped|Page stopped responding|Page responding again|Expert could not start|Expert main process exception|Expert update failed|Celebration pack unavailable|Diagnostics connection test)/i, 'Diagnostics'],

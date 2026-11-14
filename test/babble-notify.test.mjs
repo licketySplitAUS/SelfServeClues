@@ -155,7 +155,7 @@ test('existing Expert fireworks starts and replays use the dedicated webhook whi
     assert.equal((await notify(new Request('https://example.test/api/babble-notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ event, item, anonymousId: 'BE-ABCD-EFGH' }) }), {})).status, 204);
   }
   assert.deepEqual(sent.map(s => s.url), ['https://example.invalid/fireworks', 'https://example.invalid/fireworks', 'https://example.invalid/fireworks', 'https://example.invalid/default']);
-  assert.equal(sent[0].body.embeds[0].title, 'Babble Expert fireworks triggered');
+  assert.equal(sent[0].body.embeds[0].title, 'Fireworks — Babble Expert celebration');
   assert.equal(sent[0].body.embeds[0].fields.find(field => field.name === 'Celebration').value, 'Fireworks', 'older clients retain their known animation');
   assert.equal(sent[0].body.embeds[0].fields.find(field => field.name === 'Started by').value, 'Not recorded by this Expert version');
   for (const [trigger, label] of [['completion', 'Finished puzzle automatically'], ['preview', 'Opened celebration preview'], ['replay', 'Clicked replay or Play'], ['reload', 'Reloaded celebration page']]) {
@@ -168,10 +168,10 @@ test('existing Expert fireworks starts and replays use the dedicated webhook whi
   assert.equal((await notify(badTrigger, {})).status, 400);
   assert.equal(sent.length, beforeInvalid);
   const celebrationRequest = animation => new Request('https://example.test/api/babble-notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ event: 'option', item: 'Fireworks replay', animation }) });
-  for (const [animation, label] of [['curtain', 'Red stage curtain'], ['message', 'Congratulations message (reduced motion)']]) {
+  for (const [animation, label] of [['magic-paint', 'Magic paintbrush'], ['curtain', 'Red stage curtain'], ['message', 'Congratulations message (reduced motion)']]) {
     assert.equal((await notify(celebrationRequest(animation), {})).status, 204);
     assert.equal(sent.at(-1).url, 'https://example.invalid/fireworks');
-    assert.equal(sent.at(-1).body.embeds[0].title, 'Babble Expert celebration triggered');
+    assert.equal(sent.at(-1).body.embeds[0].title, `${label} — Babble Expert celebration`);
     assert.equal(sent.at(-1).body.embeds[0].fields.find(field => field.name === 'Celebration').value, label);
   }
   const count = sent.length;
