@@ -31,6 +31,16 @@
       !input.closest('tr')?.querySelector('input[type="checkbox"]')?.checked);
     if (next) { next.focus(); next.select(); }
   }
+  // A tick records an entered answer; it must never supply an unknown word.
+  // Capture before legacy inline handlers can persist an invalid tick.
+  document.addEventListener('click', event => {
+    const tick = event.target;
+    if (!tick?.matches?.('input[type="checkbox"]') || !tick.checked) return;
+    const field = tick.closest('tr')?.querySelector('input.answer[data-answer-word], input[name^="edt"]');
+    if (!field || (field.value.trim().toLowerCase() && field.value.trim().toLowerCase() === answer(field))) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
   document.addEventListener('input', event => { if (isSlot(event.target)) entered = null; });
   document.addEventListener('focusin', event => { if (event.target !== entered) entered = null; });
   document.addEventListener('change', event => { if (isSlot(event.target)) check(event.target); });

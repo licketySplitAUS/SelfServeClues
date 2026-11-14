@@ -9,7 +9,8 @@ function fixture() {
   const document = { body: {}, querySelectorAll: () => fields,
     addEventListener: (name, callback) => listeners.set(name, callback) };
   const fields = ['aced', 'aces', 'acid'].map((word, index) => {
-    const check = { checked: false };
+    const check = { checked: false, matches: selector => selector === 'input[type="checkbox"]',
+      closest: () => ({ querySelector: () => fields[index] }) };
     return { name: `edt${index + 1}`, dataset: {}, value: word.slice(0, 2), isConnected: true,
       matches: () => true, closest: () => ({ querySelector: () => check }),
       getClientRects: () => [1], focus() { document.activeElement = this; },
@@ -57,4 +58,21 @@ test('editing again resets the Enter sequence and composition is left alone', ()
   assert.equal(field.check.checked, true);
   assert.equal(f.document.activeElement, field);
   assert.equal(f.fire('keydown', field, { isComposing: true }).prevented, undefined);
+});
+
+test('clicking an unsolved checkbox cannot mark or reveal its answer, while unticking remains available', () => {
+  const f = fixture(), field = f.fields[0];
+  for (const value of ['ac', '', 'aces', 'wrong']) {
+    field.value = value;
+    field.check.checked = true; // Browsers toggle before dispatching click.
+    assert.equal(f.fire('click', field.check).prevented, true);
+    assert.equal(field.value, value);
+    assert.deepEqual(f.calls, []);
+  }
+  field.check.checked = false;
+  assert.equal(f.fire('click', field.check).prevented, undefined);
+  field.value = ' ACED ';
+  field.check.checked = true;
+  assert.equal(f.fire('click', field.check).prevented, undefined);
+  assert.deepEqual(f.calls, [], 'Clicking never imports an answer');
 });

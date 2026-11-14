@@ -340,9 +340,11 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
     } }));
   }
 
-  function toggle(word: string) {
+  function unmark(word: string) {
     const current = foundRef.current;
-    const next = current.includes(word) ? current.filter((item) => item !== word) : [...current, word];
+    // Only a validated entry can mark a word found; checkboxes can clear it.
+    if (!current.includes(word)) return;
+    const next = current.filter((item) => item !== word);
     foundRef.current = next;
     setFound(next);
     announceProgress(next);
@@ -561,7 +563,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
                           aria-label={`Mark ${clue.start} clue found`}
                           type="checkbox"
                           checked={found.includes(clue.word)}
-                          onChange={() => toggle(clue.word)}
+                          onChange={() => unmark(clue.word)}
                         />
                       </td>
                       <td><input className="answer" data-answer-word={clue.word} aria-label={`Answer beginning ${clue.start}`} defaultValue={(found.includes(clue.word) ? clue.word : clue.start).toLowerCase()} /></td>
