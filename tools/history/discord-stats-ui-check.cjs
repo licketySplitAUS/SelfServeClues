@@ -30,6 +30,15 @@ app.whenReady().then(async () => {
     { ...message('Babble Expert started', { 'Anonymous user': 'Other\nBE-9D3P-CWUT', Version: '3.3.0.0' }), timestamp: new Date(now - 5000).toISOString() },
     message('Page could not load', { 'Anonymous user': 'Other\nBE-9D3P-CWUT', Component: 'clues', 'Error code': '-105', 'Repeated incidents': '3', Version: '3.2.11.0', 'Occurred (UTC)': new Date(now - 15000).toISOString(), Elapsed: '42.4 seconds', 'Total RAM': '8192 MB', 'OS build': '10.0.22631' }),
   ], now - 86400000, now);
+  const incidentKey = 'BE-9D3P-CWUT:12345678-1234-4234-8234-123456789abc';
+  const playerFirst = first.groups.find(group => group.cohort === 'regular'), playerSecond = second.groups.find(group => group.cohort === 'regular');
+  playerFirst.upgradeJourney = { fixture: { installation: 'BE-9D3P-CWUT', step: 'User chose Later', targetVersion: '4.0.0', version: '3.7.0', occurredAt: new Date(now-20000).toISOString() } };
+  playerFirst.technicalIncidents = { [incidentKey]: { installation: 'BE-9D3P-CWUT', component: 'babble', problemAt: new Date(now-20000).toISOString(), interrupted: false } };
+  playerSecond.technicalIncidents = { [incidentKey]: { installation: 'BE-9D3P-CWUT', component: 'babble', recoveredAt: new Date(now-10000).toISOString(), interrupted: true } };
+  playerSecond.celebrationPacks = { 'cached / abcdef123456': 1 };
+  Object.values(playerFirst.errors)[0].byInstallation['BE-9D3P-CWUT'].performance = { occurredAt: new Date(now-20000).toISOString(), appWorkingSetMB:600, freeMemoryMB:400 };
+  Object.values(playerSecond.errors)[0].byInstallation['BE-9D3P-CWUT'].performance = { occurredAt: new Date(now-15000).toISOString(), appWorkingSetMB:900, appPrivateMB:650, freeMemoryMB:180, appCpuPercent:12.5, sampleWindowSeconds:30, sampleAgeSeconds:2 };
+
   for (const summary of [first, second]) for (const group of summary.groups) for (const [id, actor] of Object.entries(group.installations)) actor.name = await resolveAlias(id);
   const playerAlias = await resolveAlias('BE-9D3P-CWUT');
   let mode = 'normal', pages = 0, requestedPeriod;
@@ -88,6 +97,9 @@ app.whenReady().then(async () => {
     const out = path.resolve(__dirname, '../../artifacts/discord-stats'); await fs.mkdir(out, { recursive: true });
     await sleep(120); await run(`window.scrollTo(0,document.querySelector('.discord-activity').getBoundingClientRect().top+scrollY-12)`); await sleep(120);
     await fs.writeFile(path.join(out, 'desktop.png'), (await win.webContents.capturePage()).toPNG());
+    await run(`window.scrollTo({top:Array.from(document.querySelectorAll('.discord-activity details')).find(el=>el.querySelector('summary')?.textContent==='Expert resource use at incidents').getBoundingClientRect().top+scrollY-10,behavior:'instant'}); new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));`);
+    await fs.writeFile(path.join(out, 'upgrade-and-recovery.png'), (await win.webContents.capturePage()).toPNG());
+    assert.ok(await run(`document.querySelector('.discord-activity').textContent.includes('User chose Later') && document.querySelector('.discord-activity').textContent.includes('Interrupted; elapsed excluded')`));
     win.setSize(390, 844); await sleep(150); await run(`window.scrollTo(0,document.querySelector('.discord-activity').getBoundingClientRect().top+scrollY-12)`); await sleep(120);
     assert.equal(await run(`document.documentElement.scrollWidth<=innerWidth`), true, 'Mobile has no horizontal overflow');
     await fs.writeFile(path.join(out, 'mobile.png'), (await win.webContents.capturePage()).toPNG());
@@ -107,7 +119,12 @@ app.whenReady().then(async () => {
     assert.deepEqual([diagnosticDetail.count, diagnosticDetail.incidents, diagnosticDetail.timedReports, diagnosticDetail.totalElapsedMs, diagnosticDetail.maxElapsedMs], [2, 6, 2, 54900, 42400]);
     assert.equal(diagnosticDetail.system.memoryMB, 8192, 'Latest reported system details survive page merging');
     assert.equal(diagnosticDetail.system.osRelease, '10.0.22631');
+    assert.equal(diagnosticDetail.performance.appWorkingSetMB,900); assert.equal(diagnosticDetail.performance.appCpuPercent,12.5);
     assert.equal(exported.coverage.every(channel => channel.done), true);
+    assert.equal(exported.totals.upgradeJourney.fixture.step, 'User chose Later');
+    assert.ok(exported.totals.technicalIncidents[incidentKey].problemAt && exported.totals.technicalIncidents[incidentKey].recoveredAt);
+    assert.equal(exported.totals.technicalIncidents[incidentKey].interrupted, true);
+    assert.equal(exported.totals.celebrationPacks['cached / abcdef123456'], 1);
     assert.ok(exported.notes.length); assert.ok(exported.exportedAt);
     assert.equal(JSON.stringify(exported).includes('ui-test-key'), false, 'Credentials are never exported');
     assert.match(await run(`window.downloads[0].filename`), /^babble-discord-activity-all-.*\.json$/);

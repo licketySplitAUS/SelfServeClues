@@ -43,6 +43,8 @@ export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), s
   const fireworks = ['resource', 'option'].includes(data.event) && /^Fireworks(?: replay)?$/i.test(String(data.item || '').trim());
   if (fireworks && data.animation !== undefined && !validAnimation(data.animation)) return json({ error: 'Invalid animation' }, 400);
   if (fireworks && data.trigger !== undefined && !validCelebrationTrigger(data.trigger)) return json({ error: 'Invalid celebration trigger' }, 400);
+  if (fireworks && data.packSource !== undefined && !['bundled', 'cached', 'downloaded'].includes(data.packSource)) return json({ error: 'Invalid pack source' }, 400);
+  if (fireworks && data.packRevision !== undefined && (typeof data.packRevision !== 'string' || !/^(?:bundled|[a-f0-9]{12})$/.test(data.packRevision))) return json({ error: 'Invalid pack revision' }, 400);
   if (!productionNotifications()) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
   const webhookUrl = (fireworks ? env('DISCORD_FIREWORKS_WEBHOOK_URL') : data.event === 'upgrade' ? env('DISCORD_UPGRADE_WEBHOOK_URL')
     : data.event === 'install' ? env('DISCORD_NEW_USER_WEBHOOK_URL')
@@ -96,6 +98,8 @@ export const createHandler = ({ resolveAlias = async id => anonymousAlias(id), s
     fields.push(await pageCounterField(readCount));
   }
   if (fireworks) fields.push({ name: 'Celebration', value: celebrationNames[data.animation || 'fireworks'], inline: true });
+  if (fireworks && data.packSource) fields.push({ name: 'Effects source', value: data.packSource, inline: true });
+  if (fireworks && data.packRevision) fields.push({ name: 'Effects revision', value: data.packRevision, inline: true });
   if (fireworks) fields.push({ name: 'Started by', value: data.trigger ? celebrationTriggers[data.trigger] : /replay/i.test(data.item) ? 'Replay (older Expert)' : 'Not recorded by this Expert version', inline: true });
 
   const message = {

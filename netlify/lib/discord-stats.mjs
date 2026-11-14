@@ -64,13 +64,14 @@ export function pageRange(params, now = Date.now()) {
   return { from, to, before: before && BigInt(before) < BigInt(endCursor) ? before : endCursor };
 }
 const events = [
+  [/^Babble Expert update journey$/i, 'Upgrade journey'],
   [/^New Babble Expert user$/i, 'Installs'], [/^Babble Expert upgraded$/i, 'Upgrades'],
   [/^Babble Expert started$/i, 'Starts'], [/^Babble Expert session ended$/i, 'Sessions'],
   [/^Babble Expert resource opened$/i, 'Resources'], [/^Babble Expert option used$/i, 'Options'],
   [/^Babble Expert (?:fireworks|celebration) triggered$/i, 'Expert fireworks'], [/^Clues completed/i, 'Clues completions'],
   [/^Babble Expert information page visited$/i, 'Guide visits'], [/^A message for lickety$/i, 'Contact messages'],
   [/^Babble preview:/i, 'Puzzle updates'], [/backup/i, 'Backup alerts'],
-  [/^(?:Page could not load|Page loading unusually slowly|Slow page finished loading|Page renderer stopped|Page stopped responding|Page responding again|Expert could not start|Expert main process exception|Expert update failed|Diagnostics connection test)/i, 'Diagnostics'],
+  [/^(?:Page could not load|Page loading unusually slowly|Slow page finished loading|Page renderer stopped|Page stopped responding|Page responding again|Expert could not start|Expert main process exception|Expert update failed|Celebration pack unavailable|Diagnostics connection test)/i, 'Diagnostics'],
 ];
 function eventFor(title) { return events.find(([pattern]) => pattern.test(title))?.[1]; }
 function normalizedVersion(value) {
@@ -96,7 +97,7 @@ function durationSeconds(value) {
 }
 function group(cohort) {
   return { cohort, posts: 0, reports: 0, sessionSeconds: 0, measuredSessions: 0, diagnosticIncidents: 0,
-    installations: {}, browsers: [], events: {}, days: {}, hours: Array(24).fill(0), versions: {}, platforms: {}, countries: {}, features: {}, celebrationTriggers: {}, errors: {} };
+    installations: {}, browsers: [], events: {}, days: {}, hours: Array(24).fill(0), versions: {}, platforms: {}, countries: {}, features: {}, celebrationTriggers: {}, celebrationPacks: {}, upgradeJourney: {}, technicalIncidents: {}, errors: {} };
 }
 const add = (table, key, amount = 1) => {
   if (key) Object.defineProperty(table, key, { value: (Object.hasOwn(table, key) ? table[key] : 0) + amount, enumerable: true, writable: true, configurable: true });
@@ -114,7 +115,7 @@ export function summarizeMessages(messages, from, to) {
     const id = fields.get('Anonymous user')?.match(/\bBE-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}\b/)?.[0];
     const localInstant = fields.get('Occurred (Sydney)')?.match(/<t:(\d{1,12}):R>/);
     const occurred = localInstant ? Number(localInstant[1]) * 1000 : Date.parse(fields.get('Occurred (UTC)'));
-    const observed = event === 'Diagnostics' && occurred >= epoch && occurred <= time ? occurred : time;
+    const observed = ['Diagnostics', 'Upgrade journey'].includes(event) && occurred >= epoch && occurred <= time ? occurred : time;
     const observedAt = new Date(observed).toISOString();
     const browser = fields.get('Anonymous browser')?.match(/\bCV-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\b/)?.[0];
     const synthetic = /^Diagnostics connection test/i.test(title) || testFeatures.has(fields.get('Option')) || testFeatures.has(fields.get('Resource'))
@@ -147,6 +148,8 @@ export function summarizeMessages(messages, from, to) {
     const feature = fields.get('Resource') || fields.get('Option');
     if (feature) add(row.features, `${event}: ${clean(feature, 80)}`);
     if (event === 'Expert fireworks') {
+      const source = fields.get('Effects source'), revision = fields.get('Effects revision');
+      if (['bundled', 'cached', 'downloaded'].includes(source) && /^(?:bundled|[a-f0-9]{12})$/.test(revision || '')) add(row.celebrationPacks, `${source} / ${revision}`);
       const label = fields.get('Started by');
       add(row.celebrationTriggers, Object.values(celebrationTriggers).includes(label) ? label : /replay/i.test(feature || '') ? 'Replay (older Expert)' : 'Not recorded by this Expert version');
     }
@@ -157,7 +160,22 @@ export function summarizeMessages(messages, from, to) {
         if (id) { row.installations[id].sessionSeconds += seconds; row.installations[id].sessions++; }
       }
     }
+    if (event === 'Upgrade journey' && id) {
+      const step = fields.get('Upgrade step'), target = normalizedVersion(fields.get('Update target'));
+      const reportId = fields.get('Report ID');
+      if (['Download ready', 'User chose Later', 'Installation requested', 'Download opened (Mac)', 'New version running successfully'].includes(step) && target && /^[a-f0-9-]{36}$/.test(reportId || '')) {
+        row.upgradeJourney[reportId] = { installation: id, step, targetVersion: target, version, previousVersion: normalizedVersion(fields.get('Previous version')), occurredAt: observedAt };
+      }
+    }
     if (event === 'Diagnostics') {
+      const incident = fields.get('Incident ID'), interrupted = fields.get('Timing')?.startsWith('Interrupted');
+      if (id && /^[a-f0-9-]{36}$/.test(incident || '') && /^(?:Page loading unusually slowly|Slow page finished loading|Page stopped responding|Page responding again|Page could not load)$/.test(title)) {
+        const key = `${id}:${incident}`, recovery = /^(?:Page responding again|Slow page finished loading)$/.test(title);
+        const detail = row.technicalIncidents[key] ||= { installation: id, component: clean(fields.get('Component')), interrupted: false };
+        detail.interrupted ||= !!interrupted;
+        if (recovery) detail.recoveredAt = observedAt;
+        else if (!detail.problemAt || observedAt < detail.problemAt) detail.problemAt = observedAt;
+      }
       const incidents = Math.min(9999, Math.max(1, Number.parseInt(fields.get('Repeated incidents'), 10) || 1));
       row.diagnosticIncidents += incidents;
       const rawCode = fields.get('Error code')?.trim();
@@ -180,11 +198,23 @@ export function summarizeMessages(messages, from, to) {
         error.byInstallation ||= {};
         const detail = error.byInstallation[id] ||= { count: 0, incidents: 0, firstOccurredAt: observedAt, lastOccurredAt: observedAt,
           lastReceivedAt: new Date(time).toISOString(), timedReports: 0, totalElapsedMs: 0, maxElapsedMs: 0 };
+        const resourceFields = { appWorkingSetMB: 'Expert working set (sum)', appPrivateMB: 'Expert private memory', freeMemoryMB: 'System free RAM', appCpuPercent: 'Expert CPU (% of machine)', sampleWindowSeconds: 'CPU sample window (seconds)', sampleAgeSeconds: 'Resource sample age (seconds)' };
+        const performance = {};
+        for (const [key, label] of Object.entries(resourceFields)) {
+          const raw = fields.get(label), value = Number(raw), max = key === 'appCpuPercent' ? 100 : key.endsWith('Seconds') ? 90 : 16777216;
+          if (raw !== undefined && raw !== '' && Number.isFinite(value) && value >= 0 && value <= max) performance[key] = value;
+        }
+        if (Object.keys(performance).length && (!detail.performance || observedAt >= detail.performance.occurredAt)) detail.performance = { ...performance, occurredAt: observedAt };
+        const service = fields.get('Update service');
+        if (['github-api', 'github-assets', 'github-releases', 'github-updates'].includes(service)) {
+          error.services ||= {}; add(error.services, service);
+        }
         detail.count++; detail.incidents += incidents;
         if (observedAt < detail.firstOccurredAt) detail.firstOccurredAt = observedAt;
         if (observedAt > detail.lastOccurredAt) detail.lastOccurredAt = observedAt;
         if (new Date(time).toISOString() > detail.lastReceivedAt) detail.lastReceivedAt = new Date(time).toISOString();
-        const elapsed = fields.get('Elapsed')?.match(/^(\d+(?:\.\d+)?) seconds$/);
+        const elapsed = !interrupted && fields.get('Elapsed')?.match(/^(\d+(?:\.\d+)?) seconds$/);
+        if (interrupted) detail.interruptedReports = (detail.interruptedReports || 0) + 1;
         if (elapsed && Number(elapsed[1]) <= 86400) {
           const ms = Math.round(Number(elapsed[1]) * 1000);
           detail.timedReports++; detail.totalElapsedMs += ms; detail.maxElapsedMs = Math.max(detail.maxElapsedMs, ms);

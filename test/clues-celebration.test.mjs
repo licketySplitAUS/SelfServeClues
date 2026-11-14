@@ -5,6 +5,20 @@ import vm from 'node:vm';
 const context = { module: { exports: {} }, URLSearchParams, URL };
 vm.runInNewContext(fs.readFileSync(new URL('../public/clues-celebration.js', import.meta.url), 'utf8'), context);
 const { installCluesCelebration, installExpertCelebrationUpgrade } = context.module.exports;
+test('the hosted Expert pack and browser bundle use exactly the shared renderer and reporting catalog', async () => {
+  const pack = JSON.parse(fs.readFileSync(new URL('../public/celebration-pack-v1.json', import.meta.url), 'utf8'));
+  const shared = vm.createContext({});
+  vm.runInContext(fs.readFileSync(new URL('../public/celebration-effects.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n'), shared);
+  assert.equal(pack.version, 1);
+  assert.equal(pack.renderer, shared.createBabbleCelebration.toString());
+  const catalog = shared.createBabbleCelebration({ getContext: () => null });
+  assert.deepEqual(pack.effects, Array.from(catalog.effects));
+  assert.deepEqual(pack.labels, Array.from(catalog.labels));
+  const { celebrationNames } = await import('../netlify/lib/celebration-names.mjs');
+  for (let i = 0; i < pack.effects.length; i++) assert.equal(celebrationNames[pack.effects[i]], pack.labels[i]);
+  const browser = fs.readFileSync(new URL('../public/clues-celebration.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.ok(browser.includes(pack.renderer)); assert.ok(browser.includes(pack.fireworks));
+});
 function fixture({ electron = false, reduced = false, storage = new Map(), print = false } = {}) {
   const nodes = [], events = new Map(), observers = [], timers = new Map();
   const element = () => ({ style: {}, removed: false, children: [], attributes: {},
@@ -30,6 +44,44 @@ function fixture({ electron = false, reduced = false, storage = new Map(), print
 }
 const complete = { puzzleKey: 'published:8618:ABCDEFGHIJKLMNOPQRSTUVWXY', total: 3, found: 3 };
 
+test('normal completion replays the selected show and words without a chooser or an extra completion report', () => {
+  const f = fixture(), shows = [], reports = [];
+  let words = ['alpha']; f.win.GetCelebrationWords = () => words;
+  f.win.fetch = (_url, options) => { reports.push(JSON.parse(options.body)); return Promise.resolve({ ok: true }); };
+  const controller = installCluesCelebration(f.win, (_canvas, options) => { shows.push(options); options.onStart({ effect: 'aurora', animation: 'aurora', seed: 71 }); return { destroy() {} }; });
+  controller.progress(complete);
+  let panel = f.nodes.find(node => !node.removed && node.attributes.role === 'status');
+  assert.ok(!panel.children.some(node => node.attributes['aria-label'] === 'Celebration effect'));
+  words = ['bravo']; panel.children.find(node => node.textContent === 'Play again').click();
+  assert.equal(shows.length, 2); assert.equal(shows.at(-1).effect, 'aurora');
+  assert.equal(shows.at(-1).seed, 71); assert.deepEqual(Array.from(shows.at(-1).words), ['alpha']);
+  panel = f.nodes.find(node => !node.removed && node.attributes.role === 'status');
+  assert.ok(!panel.children.some(node => node.attributes['aria-label'] === 'Celebration effect'));
+  assert.equal(reports.length, 1); controller.stop();
+});
+
+test('browser cloud uses only current found words and the preview chooser contains the entire shared catalog', () => {
+  const f = fixture(), shows = [], reports = [];
+  let current = ['CHARLIE', 'alpha', 'alpha', '<not-a-word>'];
+  f.win.GetCelebrationWords = () => current;
+  f.win.fetch = (_url, options) => { reports.push(JSON.parse(options.body)); return Promise.resolve({ ok: true }); };
+  const controller = installCluesCelebration(f.win, (_canvas, options) => {
+    shows.push(options); options.onStart({ effect: 'word-cloud', animation: 'word-cloud' }); return { destroy() {} };
+  });
+  f.events.get('lickety:celebration-preview')({ detail: { effect: 'word-cloud' } });
+  assert.deepEqual(Array.from(shows.at(-1).words), ['alpha', 'charlie']);
+  const select = f.nodes.find(node => node.attributes.role === 'status').children.find(node => node.attributes['aria-label'] === 'Celebration effect');
+  const pack = JSON.parse(fs.readFileSync(new URL('../public/celebration-pack-v1.json', import.meta.url), 'utf8'));
+  assert.equal(select.children.length, pack.effects.length + 1);
+  assert.ok(select.children.some(option => option.value === 'fibre-tunnel'));
+  current = ['bravo']; controller.progress(complete);
+  assert.deepEqual(Array.from(shows.at(-1).words), ['bravo'], 'a new show reads the current puzzle rather than retaining old words');
+  assert.doesNotMatch(JSON.stringify(reports), /alpha|bravo|charlie|foundWords/);
+  current = []; f.events.get('lickety:celebration-preview')({ detail: { effect: 'word-cloud' } });
+  assert.equal(shows.at(-1).words.length, 0);
+  controller.stop();
+});
+
 test('older Expert gets a silent hosted Clues effect through its existing replay/dismiss handle; new Expert remains in charge', () => {
   const f = fixture({ electron: true }); let starts = 0, oldStops = 0, stops = 0;
   const render = (canvas, options) => { assert.equal(options.sound, false); assert.equal(options.clickReplay, false); starts++; canvas.dataset = { effect: 'slime' }; return { destroy() { stops++; canvas.remove(); } }; };
@@ -48,10 +100,12 @@ test('older Expert gets a silent hosted Clues effect through its existing replay
   for (const options of [{}, { electron: true, print: true }]) assert.equal(installExpertCelebrationUpgrade(fixture(options).win, render).enabled, false);
 });
 
-test('browser celebrations enable sound and offer mute/unmute; reduced motion stays silent', () => {
-  const f = fixture(), soundChanges = [];
+test('browser celebrations ignore the system reduced-motion preference and offer mute/unmute', () => {
+  for (const reduced of [false, true]) {
+  const f = fixture({ reduced }), soundChanges = [];
   const controller = installCluesCelebration(f.win, (_canvas, options) => {
     assert.equal(options.sound, true);
+    assert.equal(options.reducedMotion, false);
     return { setSoundEnabled: enabled => soundChanges.push(enabled), destroy() {} };
   });
   controller.progress(complete);
@@ -60,18 +114,16 @@ test('browser celebrations enable sound and offer mute/unmute; reduced motion st
   mute.click(); assert.equal(mute.textContent, 'Enable sound');
   mute.click(); assert.equal(mute.textContent, 'Mute');
   assert.deepEqual(soundChanges, [false, true]); controller.stop();
-  const reduced = fixture({ reduced: true });
-  installCluesCelebration(reduced.win, () => assert.fail('reduced motion must not create audio or an animation')).progress(complete);
-  assert.equal(reduced.nodes.find(node => node.attributes.role === 'status').children.some(node => node.textContent === 'Mute'), false);
+  }
 });
 
-test('browser completion reports the renderer selection and the reduced-motion fallback', () => {
+test('browser completion reports the actual animation with either system motion preference', () => {
   for (const reduced of [false, true]) {
     const f = fixture({ reduced }); let notice;
     f.win.fetch = (_url, options) => { notice = JSON.parse(options.body); return Promise.resolve(); };
     installCluesCelebration(f.win, (_canvas, options) => { options.onStart({ effect: 'curtain', animation: 'curtain' }); return { destroy() {} }; }).progress(complete);
-    assert.equal(notice.animation, reduced ? 'message' : 'curtain');
-    assert.equal(notice.effect, reduced ? 'message' : 'fireworks');
+    assert.equal(notice.animation, 'curtain');
+    assert.equal(notice.effect, 'fireworks');
   }
 });
 test('ordinary browser completion runs once; partial, empty, duplicate and restored progress do not replay', () => {
@@ -99,12 +151,12 @@ test('Expert overlay starting later immediately stops and removes the browser ce
   f.observers[0].fn(); assert.equal(f.destroyed(), 1); assert.equal(f.win.document.getElementById('lickety-clues-fireworks'), undefined);
   assert.equal(f.nodes.filter(n => !n.removed && n.attributes.role === 'status').length, 0); assert.equal(f.timers.size, 0);
 });
-test('reduced motion uses a message only; Escape, Close and auto-finish clean up', () => {
+test('Escape, Close and auto-finish clean up animations even when the system requests reduced motion', () => {
   const reduced = fixture({ reduced: true }); installCluesCelebration(reduced.win, reduced.fireworks).progress(complete);
-  assert.equal(reduced.shows(), 0); assert.ok(reduced.nodes.some(n => n.attributes.role === 'status'));
+  assert.equal(reduced.shows(), 1); assert.ok(reduced.nodes.some(n => n.attributes.role === 'status'));
   reduced.events.get('keydown')({ key: 'Escape' }); assert.equal(reduced.nodes.filter(n => !n.removed).length, 0);
   for (const dismiss of ['close', 'timer']) {
-    const f = fixture(); installCluesCelebration(f.win, f.fireworks).progress(complete);
+    const f = fixture({ reduced: true }); installCluesCelebration(f.win, f.fireworks).progress(complete);
     if (dismiss === 'close') f.nodes.find(n => n.attributes.role === 'status').children[1].click();
     else [...f.timers.values()][0]();
     assert.equal(f.destroyed(), 1); assert.equal(f.timers.size, 0); assert.ok(f.observers[0].disconnected);
@@ -130,7 +182,7 @@ test('unavailable storage does not prevent celebration or cause duplicate shows'
 test('the actual canvas renderer starts, advances and shuts down without audio or lingering frames', () => {
   const f = fixture(); let clock = 0, nextFrame = 0; const frames = new Map();
   const gradient = { addColorStop() {} };
-  const drawing = new Proxy({}, { get: (_, key) => /create.*Gradient/.test(key) ? () => gradient : () => {}, set: () => true });
+  const drawing = new Proxy({}, { get: (_, key) => /create.*Gradient/.test(key) ? () => gradient : key === 'measureText' ? text => ({width:text.length*10}) : () => {}, set: () => true });
   const create = f.win.document.createElement;
   f.win.document.createElement = tag => { const node = create(tag); node.dataset = {}; node.getContext = () => drawing; node.removeEventListener = () => {}; return node; };
   const rendererContext = { module: { exports: {} }, URLSearchParams, performance: { now: () => clock },
@@ -171,7 +223,8 @@ test('five quick heart-logo clicks open the standalone chooser, leaving completi
   click(event); assert.equal(f.shows(), 1); assert.equal(prevented, 5); assert.equal(f.storage.size, 0);
   const panel = f.nodes.find(node => node.attributes.role === 'status');
   const chooser = panel.children.find(node => node.attributes['aria-label'] === 'Celebration effect');
-  assert.equal(chooser.children.length, 13);
+  const pack = JSON.parse(fs.readFileSync(new URL('../public/celebration-pack-v1.json', import.meta.url), 'utf8'));
+  assert.equal(chooser.children.length, pack.effects.length + 1);
   chooser.value = 'slime'; chooser.change(); assert.equal(f.shows(), 2); assert.equal(f.destroyed(), 1);
 });
 

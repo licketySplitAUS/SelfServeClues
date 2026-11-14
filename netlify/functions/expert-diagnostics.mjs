@@ -12,6 +12,7 @@ const events = {
   'load-slow': 'Page loading unusually slowly', 'load-recovered': 'Slow page finished loading',
   'renderer-crashed': 'Page renderer stopped', unresponsive: 'Page stopped responding',
   responsive: 'Page responding again', 'update-failed': 'Expert update failed',
+  'update-stage': 'Babble Expert update journey', 'celebration-pack-failed': 'Celebration pack unavailable',
 };
 const components = new Set(['main', 'babble', 'clues', 'resources', 'updater', 'tour', 'auxiliary']);
 const reasons = new Set(['exception', 'timeout', 'check', 'download', 'install', 'clean-exit', 'abnormal-exit', 'killed', 'crashed', 'oom', 'launch-failed', 'integrity-failure', 'memory-eviction', 'unknown']);
@@ -28,16 +29,33 @@ export function diagnosticMessage(data) {
       || !version(data.version) || !['win32', 'darwin', 'linux'].includes(data.platform)
       || !['x64', 'arm64', 'ia32', 'arm'].includes(data.architecture)
       || typeof data.occurredAt !== 'string' || !/^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(data.occurredAt) || !Number.isFinite(Date.parse(data.occurredAt))) return null;
+  const stages = { 'download-ready': 'Download ready', later: 'User chose Later', 'install-requested': 'Installation requested', 'download-opened': 'Download opened (Mac)', running: 'New version running successfully' };
+  if (data.event === 'update-stage' && (data.component !== 'updater' || !Object.hasOwn(stages, data.stage) || !version(data.targetVersion))) return null;
   const fields = [
     { name: 'Anonymous user', value: `${anonymousAlias(data.anonymousId)}\n${data.anonymousId}`, inline: true },
     { name: 'Version', value: data.version, inline: true },
     { name: 'Component', value: data.component, inline: true },
     { name: 'Platform', value: `${data.platform} / ${data.architecture}`, inline: true },
   ];
+  if (data.event === 'update-stage') {
+    fields.push({ name: 'Upgrade step', value: stages[data.stage], inline: false });
+    fields.push({ name: 'What this confirms', value: data.stage === 'running' ? 'The newer version opened its main window successfully.' : data.stage === 'install-requested' ? 'Installation was requested; a later successful launch confirms the result.' : data.stage === 'download-opened' ? 'The Mac download link opened; download and installation are not yet confirmed.' : data.stage === 'later' ? 'The player deferred the update; this is not an update failure.' : 'The update download finished and is ready to install.', inline: false });
+    if (version(data.previousVersion)) fields.push({ name: 'Previous version', value: data.previousVersion, inline: true });
+  }
+  if (data.event === 'celebration-pack-failed') fields.push({ name: 'Effect on play', value: 'Expert keeps using cached or bundled effects and retries silently. No error dialog is shown.', inline: false });
+  if (typeof data.incidentId === 'string' && /^[a-f0-9-]{36}$/.test(data.incidentId)) fields.push({ name: 'Incident ID', value: data.incidentId, inline: false });
+  if (['continuous', 'interrupted'].includes(data.timingStatus)) fields.push({ name: 'Timing', value: data.timingStatus === 'interrupted' ? 'Interrupted by sleep, suspension or delayed execution; elapsed time excluded' : 'Continuous measurement', inline: false });
   if (typeof data.osRelease === 'string' && /^[\d.]{1,32}$/.test(data.osRelease)) fields.push({ name: 'OS build', value: data.osRelease, inline: true });
   const windows = { zoom: 'Zoom', add: 'Lickety Add', history: 'Recent entries', message: 'Send lickety a message', help: 'Help', highlights: "What's new", clue: 'Create Clues', journal: 'Personal progress journal' };
   if (typeof data.window === 'string' && Object.hasOwn(windows, data.window)) fields.push({ name: 'Window', value: windows[data.window], inline: true });
   if (Number.isInteger(data.memoryMB) && data.memoryMB > 0 && data.memoryMB <= 16777216) fields.push({ name: 'Total RAM', value: `${data.memoryMB} MB`, inline: true });
+  const resourceFields = { appWorkingSetMB: 'Expert working set (sum)', appPrivateMB: 'Expert private memory', freeMemoryMB: 'System free RAM', appCpuPercent: 'Expert CPU (% of machine)', sampleWindowSeconds: 'CPU sample window (seconds)', sampleAgeSeconds: 'Resource sample age (seconds)' };
+  for (const [key, name] of Object.entries(resourceFields)) {
+    const max = key === 'appCpuPercent' ? 100 : key.endsWith('Seconds') ? 90 : 16777216;
+    if (Number.isFinite(data[key]) && data[key] >= 0 && data[key] <= max && (key === 'appCpuPercent' || Number.isInteger(data[key]))) fields.push({ name, value: String(data[key]), inline: true });
+  }
+  if (data.service && ['github-api', 'github-assets', 'github-releases', 'github-updates'].includes(data.service)) fields.push({ name: 'Update service', value: data.service, inline: true });
+  if (['offline', 'online-hint', 'unknown'].includes(data.networkState)) fields.push({ name: 'Connection status', value: data.networkState === 'online-hint' ? 'Network link reported online; internet/GitHub access is not confirmed' : data.networkState === 'offline' ? 'Device reported offline' : 'Not determined', inline: false });
   if (reasons.has(data.reason)) fields.push({ name: 'Stage / reason', value: data.reason, inline: true });
   if (data.event === 'update-failed') {
     const impact = {
@@ -52,7 +70,7 @@ export function diagnosticMessage(data) {
     fields.push({ name: 'What it means', value: diagnosticErrorMeaning(data.event, data.code), inline: false });
   }
   else if (['load-slow', 'load-recovered', 'unresponsive', 'responsive'].includes(data.event)) fields.push({ name: 'What it means', value: diagnosticErrorMeaning(data.event), inline: false });
-  if (Number.isFinite(data.elapsedMs) && data.elapsedMs >= 0 && data.elapsedMs <= 86400000) fields.push({ name: 'Elapsed', value: `${(data.elapsedMs / 1000).toFixed(1)} seconds`, inline: true });
+  if (data.timingStatus !== 'interrupted' && Number.isFinite(data.elapsedMs) && data.elapsedMs >= 0 && data.elapsedMs <= 86400000) fields.push({ name: 'Elapsed', value: `${(data.elapsedMs / 1000).toFixed(1)} seconds`, inline: true });
   if (version(data.targetVersion)) fields.push({ name: 'Update target', value: data.targetVersion, inline: true });
   if (Number.isInteger(data.count) && data.count > 1 && data.count <= 9999) fields.push({ name: 'Repeated incidents', value: String(data.count), inline: true });
   if (['Error', 'TypeError', 'RangeError', 'ReferenceError', 'SyntaxError', 'URIError', 'EvalError', 'AbortError'].includes(data.errorType)) fields.push({ name: 'Exception class', value: data.errorType, inline: true });
@@ -66,7 +84,7 @@ export function diagnosticMessage(data) {
   }] };
 }
 
-export function createHandler({ getWebhook = () => env('DISCORD_DIAGNOSTICS_WEBHOOK_URL'),
+export function createHandler({ getWebhook = data => data.event === 'update-stage' ? env('DISCORD_UPGRADE_WEBHOOK_URL') || env('DISCORD_DIAGNOSTICS_WEBHOOK_URL') : env('DISCORD_DIAGNOSTICS_WEBHOOK_URL'),
   send = (...args) => fetch(...args), delivery, resolveAlias = async id => anonymousAlias(id) } = {}) {
   return async request => {
     if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -79,8 +97,17 @@ export function createHandler({ getWebhook = () => env('DISCORD_DIAGNOSTICS_WEBH
     try { data = JSON.parse(raw); } catch { return json({ error: 'Invalid JSON' }, 400); }
     const message = diagnosticMessage(data);
     if (!message) return json({ error: 'Invalid diagnostic' }, 400);
+    // Acknowledge routine offline reports from older clients too, without
+    // forwarding them to Discord or leaving them queued for another delivery.
+    const networkCodes = new Set([-7, -15, -21, -100, -101, -102, -103, -104, -105, -106, -109, -118, -137,
+      'ERR_INTERNET_DISCONNECTED', 'ERR_NAME_NOT_RESOLVED', 'ERR_CONNECTION_TIMED_OUT', 'ERR_CONNECTION_RESET', 'ERR_CONNECTION_CLOSED', 'ERR_CONNECTION_REFUSED', 'ERR_SOCKET_NOT_CONNECTED', 'ERR_NETWORK_CHANGED',
+      'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'ECONNRESET', 'ENETUNREACH', 'EHOSTUNREACH', 'ERR_UPDATE_UNKNOWN', 'ERR_UPDATER_INVALID_RELEASE_FEED', 'ERR_UPDATER_LATEST_VERSION_NOT_FOUND', 'ERR_CELEBRATION_DOWNLOAD_FAILED']);
+    if (['load-failed', 'update-failed', 'celebration-pack-failed'].includes(data.event) &&
+      (data.code === -106 || data.code === 'ERR_INTERNET_DISCONNECTED' || (data.networkState === 'offline' && networkCodes.has(data.code)))) {
+      return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
+    }
     if (!productionNotifications()) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
-    const webhook = getWebhook();
+    const webhook = getWebhook(data);
     if (!webhook) return json({ error: 'Diagnostics service is not configured' }, 503);
     let claim;
     try {

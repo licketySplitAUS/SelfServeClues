@@ -265,3 +265,34 @@ test('handler returns actionable errors without leaking token or Discord respons
   assert.equal(configuredChannels(channel.id + ', ' + channel.id).length, 1);
   assert.throws(() => configuredChannels('bad'), /DISCORD_STATS_CHANNEL_IDS/);
 });
+
+
+test('upgrade milestones stay out of failure totals and interrupted problems pair by technical ID', () => {
+  const installation = 'BE-ABCD-EFGH', incident = '12345678-1234-4234-8234-123456789abc';
+  const common = { 'Anonymous user': 'Alias\n' + installation, Version: '4.0.0.0', Component: 'babble', 'Incident ID': incident };
+  const data = summarizeMessages([
+    post('Babble Expert update journey', { ...common, 'Upgrade step': 'User chose Later', 'Update target': '4.1.0', 'Report ID': incident }),
+    post('Page stopped responding', { ...common, Timing: 'Continuous measurement' }, now - 3000),
+    post('Page responding again', { ...common, Timing: 'Interrupted by sleep, suspension or delayed execution; elapsed time excluded', Elapsed: '73032.1 seconds' }),
+    post('Babble Expert celebration triggered', { ...common, 'Effects source': 'cached', 'Effects revision': 'abcdef123456' })
+  ], from, to).groups.find(group => group.cohort === 'regular');
+  assert.equal(data.diagnosticIncidents, 2); assert.equal(data.events['Upgrade journey'], 1);
+  assert.equal(data.upgradeJourney[incident].targetVersion, '4.1.0');
+  assert.ok(data.technicalIncidents[installation + ':' + incident].problemAt);
+  assert.ok(data.technicalIncidents[installation + ':' + incident].recoveredAt);
+  assert.equal(data.technicalIncidents[installation + ':' + incident].interrupted, true);
+  const recovery = Object.values(data.errors).find(error => error.kind === 'recovery').byInstallation[installation];
+  assert.equal(recovery.timedReports, 0); assert.equal(recovery.interruptedReports, 1);
+  assert.equal(data.celebrationPacks['cached / abcdef123456'], 1);
+});
+
+
+test('incident exports retain resource measurements and fixed GitHub service categories',()=>{
+  const id='BE-ABCD-EFGH';const data=summarizeMessages([
+    post('Page stopped responding',{'Anonymous user':id,Component:'clues','Expert working set (sum)':'900','Expert private memory':'650','System free RAM':'180','Expert CPU (% of machine)':'12.5','CPU sample window (seconds)':'30','Resource sample age (seconds)':'2'}),
+    post('Expert update failed',{'Anonymous user':id,Component:'updater','Update service':'github-api'})
+  ],from,to).groups.find(group=>group.cohort==='regular');
+  const error=Object.values(data.errors).find(error=>error.byInstallation[id].performance);
+  assert.equal(error.byInstallation[id].performance.appWorkingSetMB,900);assert.equal(error.byInstallation[id].performance.appCpuPercent,12.5);
+  assert.equal(Object.values(data.errors).find(error=>error.services).services['github-api'],1);
+});

@@ -180,3 +180,17 @@ test('existing Expert fireworks starts and replays use the dedicated webhook whi
   await notify(new Request('https://example.test/api/babble-notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ event: 'option', item: 'Fireworks' }) }), {});
   assert.equal(sent.at(-1).url, 'https://example.invalid/default');
 });
+
+
+test('celebration Discord messages show only validated effects source and revision', async t => {
+  const prior = process.env.DISCORD_WEBHOOK_URL; process.env.DISCORD_WEBHOOK_URL = 'https://example.invalid/mock';
+  t.after(() => { if(prior === undefined) delete process.env.DISCORD_WEBHOOK_URL; else process.env.DISCORD_WEBHOOK_URL = prior; });
+  let message;
+  const handler = createHandler({ send: async (_url, options) => { message = JSON.parse(options.body); return {ok:true}; }, readCount: async () => null });
+  const request = extra => new Request('https://selfserve.r46.me/api/babble-notify', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'option',item:'Fireworks',animation:'fireworks',packSource:'downloaded',packRevision:'abcdef123456',...extra})});
+  assert.equal((await handler(request({}), {})).status,204);
+  assert.ok(message.embeds[0].fields.some(field => field.name === 'Effects source' && field.value === 'downloaded'));
+  assert.ok(message.embeds[0].fields.some(field => field.name === 'Effects revision' && field.value === 'abcdef123456'));
+  assert.equal((await handler(request({packRevision:'https://private'}), {})).status,400);
+  assert.equal((await handler(request({packSource:'private path'}), {})).status,400);
+});

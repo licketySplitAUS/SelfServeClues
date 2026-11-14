@@ -26,7 +26,7 @@ export const createHandler = ({ readCount = readPageCount } = {}) => async reque
   try {
     const sent = await fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(5000),
       body: JSON.stringify({ username: 'Lickety Clues', allowed_mentions: { parse: [] }, embeds: [{
-        title: animation === 'message' ? 'Clues completed — reduced-motion celebration' : animation === 'fireworks' ? 'Clues completed — fireworks triggered' : 'Clues completed — celebration triggered', color: 0xffc857,
+        title: `Clues completed — ${celebrationNames[animation]}`, color: 0xffc857,
         fields: [browserField(data.browserId),
           { name: 'Source', value: sources[data.source], inline: true },
           { name: 'Puzzle', value: data.puzzle === null ? 'Custom grid' : String(data.puzzle), inline: true },

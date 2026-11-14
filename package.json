@@ -7,11 +7,13 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "celebrations:build": "node tools/build-celebrations.mjs",
+    "celebrations:check": "node tools/build-celebrations.mjs --check",
     "history:import": "node tools/history/import.mjs",
     "history:verify": "node tools/history/verify.mjs",
     "history:preview": "node tools/history/serve.mjs",
     "dev": "netlify dev",
-    "build": "vite build",
+    "build": "npm run celebrations:build && vite build",
     "preview": "vite preview",
     "test": "node --test \"test/*.test.mjs\"",
     "typecheck": "tsc --noEmit",

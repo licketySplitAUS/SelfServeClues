@@ -9,6 +9,19 @@ const report = {
 const request = (data, headers = {}) => new Request('https://selfserve.r46.me/api/expert-diagnostics', {
   method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: typeof data === 'string' ? data : JSON.stringify(data),
 });
+
+test('upgrade journey and interrupted recovery produce readable bounded Discord fields', () => {
+  for (const stage of ['download-ready', 'later', 'install-requested', 'download-opened', 'running']) {
+    const message = diagnosticMessage({ ...report, event: 'update-stage', component: 'updater', stage, targetVersion: '4.0.0', previousVersion: '3.7.0' });
+    assert.equal(message.embeds[0].title, 'Babble Expert update journey');
+    assert.ok(message.embeds[0].fields.some(field => field.name === 'Upgrade step'));
+  }
+  assert.equal(diagnosticMessage({ ...report, event: 'update-stage', component: 'updater', stage: 'private' }), null);
+  const message = diagnosticMessage({ ...report, event: 'responsive', incidentId: report.reportId, timingStatus: 'interrupted', elapsedMs: 73032100 });
+  assert.ok(message.embeds[0].fields.some(field => field.name === 'Incident ID'));
+  assert.ok(message.embeds[0].fields.some(field => field.name === 'Timing' && field.value.startsWith('Interrupted')));
+  assert.ok(!message.embeds[0].fields.some(field => field.name === 'Elapsed'));
+});
 test('diagnostics go only to dedicated webhook with consistent installation alias and safe fields', async () => {
   const sent = [];
   const handler = createHandler({ getWebhook: () => 'https://discord.example/diagnostics', send: async (url, options) => { sent.push({ url, body: JSON.parse(options.body) }); return { ok: true }; } });
@@ -111,4 +124,34 @@ test('system errors, process exit codes and unknown codes are distinguished', ()
   assert.match(explanation({ code: 'ERR_UNKNOWN_FUTURE_ERROR' }), /No plain-English explanation/);
   assert.equal(explanation({ code: 'private text' }), undefined);
   assert.equal(explanation({ code: undefined }), undefined);
+});
+
+
+test('upgrade milestones use the upgrade Discord channel and never count as an error message', async t => {
+  const previous = process.env.DISCORD_UPGRADE_WEBHOOK_URL; process.env.DISCORD_UPGRADE_WEBHOOK_URL='https://example.invalid/upgrades';
+  t.after(() => { if(previous === undefined)delete process.env.DISCORD_UPGRADE_WEBHOOK_URL;else process.env.DISCORD_UPGRADE_WEBHOOK_URL=previous; });
+  let destination;
+  const handler=createHandler({ send:async(url, options)=>{destination=url;assert.equal(JSON.parse(options.body).embeds[0].title,'Babble Expert update journey');return {ok:true};} });
+  assert.equal((await handler(request({...report,event:'update-stage',component:'updater',stage:'running',targetVersion:'4.0.0',version:'4.0.0.0'}))).status,204);
+  assert.equal(destination,'https://example.invalid/upgrades');
+});
+
+
+test('resource and GitHub connectivity fields are bounded and explain uncertainty without forwarding private hosts', () => {
+  const message=diagnosticMessage({...report,event:'unresponsive',appWorkingSetMB:900,appPrivateMB:650,freeMemoryMB:180,appCpuPercent:12.5,sampleWindowSeconds:30,sampleAgeSeconds:2,service:'github-assets',networkState:'online-hint',pid:99,url:'https://private.example'});
+  const fields=message.embeds[0].fields;
+  assert.ok(fields.some(field=>field.name==='Expert CPU (% of machine)'&&field.value==='12.5'));
+  assert.ok(fields.some(field=>field.name==='Connection status'&&field.value.includes('not confirmed')));
+  assert.ok(fields.some(field=>field.name==='Update service'&&field.value==='github-assets'));
+  assert.doesNotMatch(JSON.stringify(message),/private.example|pid/);
+  const bad=diagnosticMessage({...report,appWorkingSetMB:Infinity,appCpuPercent:101,freeMemoryMB:-1,service:'private'});
+  assert.ok(!bad.embeds[0].fields.some(field=>/Expert CPU|working set|System free|Update service/.test(field.name)));
+});
+
+
+test('routine offline failures from older clients are acknowledged without sending to Discord', async()=>{
+  const handler=createHandler({send:()=>assert.fail('offline reports must not reach Discord')});
+  for(const details of [{event:'load-failed',code:-106},{event:'update-failed',component:'updater',code:'ERR_INTERNET_DISCONNECTED'}, {event:'update-failed',component:'updater',code:'ENOTFOUND',networkState:'offline'}]) {
+    assert.equal((await handler(request({...report,...details}))).status,204);
+  }
 });

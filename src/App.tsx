@@ -10,6 +10,7 @@ type GridResponse = { letters: string; puzzle: string | null; date?: string | nu
 type BabbleBridge = Window & {
   AddBabbleWord?: (word: string) => string;
   GetAllWords?: () => string;
+  GetCelebrationWords?: () => string[];
   showAll?: () => void;
   AddBulkWord?: () => void;
 };
@@ -447,11 +448,17 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
     const externalBulk = () => addBulkWords();
     bridge.AddBabbleWord = externalAdd;
     bridge.GetAllWords = externalGet;
+    const celebrationWords = () => {
+      const entered = new Set(foundRef.current);
+      return clues.filter(clue => entered.has(clue.word)).map(clue => clue.word.toLowerCase());
+    };
+    bridge.GetCelebrationWords = celebrationWords;
     bridge.showAll = externalShow;
     bridge.AddBulkWord = externalBulk;
     return () => {
       if (bridge.AddBabbleWord === externalAdd) delete bridge.AddBabbleWord;
       if (bridge.GetAllWords === externalGet) delete bridge.GetAllWords;
+      if (bridge.GetCelebrationWords === celebrationWords) delete bridge.GetCelebrationWords;
       if (bridge.showAll === externalShow) delete bridge.showAll;
       if (bridge.AddBulkWord === externalBulk) delete bridge.AddBulkWord;
     };

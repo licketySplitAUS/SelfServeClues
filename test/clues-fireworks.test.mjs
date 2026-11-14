@@ -12,15 +12,16 @@ test('browser completion sends an alias and public totals, never personal detail
   globalThis.fetch = async (url, options) => { sent = { url, body: JSON.parse(options.body) }; return new Response(null, { status: 204 }); };
   const result = await handler(request({ ...valid, foundWords: ['secretword'], name: 'person-name', message: '@everyone' }), { ip: '192.0.2.1', geo: { city: 'Sydney' } });
   assert.equal(result.status, 204); assert.equal(sent.url, process.env.DISCORD_FIREWORKS_WEBHOOK_URL);
-  assert.equal(sent.body.embeds[0].title, 'Clues completed — fireworks triggered');
+  assert.equal(sent.body.embeds[0].title, 'Clues completed — Fireworks');
   assert.match(sent.body.embeds[0].fields[0].value, /CV-12345678-1234-4234-8234-123456789abc/);
   assert.deepEqual(sent.body.allowed_mentions, { parse: [] });
   assert.doesNotMatch(JSON.stringify(sent.body), /secretword|person-name|192\.0\.2\.1|Sydney|@everyone/);
   assert.equal(sent.body.embeds[0].fields[1].value, 'New clues page');
   await handler(request({ ...valid, source: 'self-serve', puzzle: null, effect: 'message' }));
-  assert.match(sent.body.embeds[0].title, /reduced-motion/); assert.equal(sent.body.embeds[0].fields[2].value, 'Custom grid');
+  assert.equal(sent.body.embeds[0].title, `Clues completed — ${celebrationNames.message}`); assert.equal(sent.body.embeds[0].fields[2].value, 'Custom grid');
   for (const [animation, label] of Object.entries(celebrationNames)) {
     assert.equal((await handler(request({ ...valid, animation }))).status, 204);
+    assert.equal(sent.body.embeds[0].title, `Clues completed — ${label}`);
     assert.equal(sent.body.embeds[0].fields.find(field => field.name === 'Celebration').value, label);
   }
 });

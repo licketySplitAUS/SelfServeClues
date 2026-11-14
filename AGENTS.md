@@ -17,6 +17,7 @@ Use Node >=22.13 and the committed lockfile. Install with `npm ci` when needed. 
 | Local frontend and Functions | `npm run dev` |
 | Unit/service suite / one file | `npm test` / `node --test test/publication.test.mjs` |
 | TypeScript / frontend build | `npm run typecheck` / `npm run build` |
+| Celebration bundle / Expert pack parity | `npm run celebrations:build` / `npm run celebrations:check` |
 | Offline function packaging/routes/schedules | `node tools/history/package-check.mjs` |
 | Verify imported history | `npm run history:verify` |
 | Static fixture preview after build | `npm run history:preview` |
@@ -47,6 +48,7 @@ For reviews, report actionable defects with a concrete trigger and file/line evi
 - Preserve Qu/scoring, valid puzzle identity, stable observations and reasoned corrections. Only explicit dictionary membership rejection can permanently exclude a word; network/login/board-path errors cannot.
 - Preserve immutable puzzle/generation records, baseline fingerprints, conditional control updates and idempotent receipts. Derived statistics must not double-count revised puzzles.
 - Preserve `AddBabbleWord`, `GetAllWords`, `showAll`, `AddBulkWord` and desktop DOM hooks. Keep All/On/Off, per-visitor progress, browser Bulk Add/Grab, printable output and generation-based refresh. Embedded sound/reporting defer to Expert. Hosted Clues may upgrade older unlabelled Expert canvases silently through their existing replay/Hide handle; leave newer Expert's selected effects untouched.
+- `public/celebration-effects.js` owns compatible celebration additions. The build generates the browser bundle, version-1 Expert feed and server reporting names together. The cloud reads only current found words through a pure getter (checked/decrypted entries for legacy pages); keep words out of URLs, caches and reports. Standalone celebrations ignore browser/OS reduced-motion preferences; Expert’s explicit animation option still controls all its panes. Keep the pack contract backward compatible; preserve unfinished shuffle rounds when effects change, placing shuffled additions ahead of remaining older shows and dropping removed IDs and never make embedded Clues compete with Expert's chosen show. Normal completion chooses a surprise without a chooser; replay repeats the selected effect without consuming the rotation; reserve effect selection for the five-click logo test launcher.
 - Publication selection, actual public deployment, daily schedule and chat announcements are separate states. Saved Admin chat settings override the environment fallback. Schedules use `America/Chicago`, not Sydney time; the old dated launch is not a daily trigger.
 - Keep aliases persistently reserved, identify installations by full ID, and distinguish visits/installations/browsers/app-open duration in statistics. Notification counters read the site-wide ledger without incrementing visits.
 
@@ -61,3 +63,7 @@ Finish routine local implementation/checks autonomously. Preserve unrelated edit
 Find relevant symbols first; reuse saved logs and batch edits before rebuilding. Follow React/TypeScript/`.mjs` patterns; explain non-obvious reasons in comments. Assess dependency bundle/cold-start cost. Browser code must not import server-only modules; `shared/` supports both runtimes. Inspect final changes/new files for scope drift. Report checks/limits per repository; distinguish local, pushed, live and installer changes.
 
 Reviewed 8 November 2026. Update this guide alongside changed commands/contracts. Retain recurring, non-obvious rules; remove superseded guidance. Later explicit instructions take precedence.
+
+Upgrade journey reports use the existing diagnostic endpoint/receipts and upgrade webhook; they are not failures. Admin/export retains milestone records, celebration source/revisions and technical incident pairs across Discord pages. Interrupted timings are excluded from elapsed totals. Old reports without incident IDs cannot be reliably paired or retrospectively sleep-corrected. New fields remain bounded and allowlisted; never infer installation success from a request or a Mac download link.
+
+Resource/network diagnostics: retain only fixed GitHub service categories and an inconclusive link-state hint, never URLs. Resource samples are bounded aggregate Expert-process working/private memory, normalized machine CPU and free system RAM with age/window metadata; do not infer causation from total RAM or treat working-set sums as unique memory. Preserve the latest dated sample across history pages and label missing/first CPU samples unknown. Client-confirmed offline failures are suppressed; old ambiguous DNS/timeouts must not be retroactively reclassified as offline.
