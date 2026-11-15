@@ -249,6 +249,28 @@ test('uncertain button creation is not replayed and cannot stop the existing men
   assert.equal(f.posts.length, 1);
 });
 
+test('token rotation refreshes an existing button ID in place, with safe retries after a lost PATCH', async () => {
+  const f = monitorFixture(), calls = [];
+  let fail = false;
+  const sendButton = async (sourceId, options) => {
+    calls.push({ sourceId, messageId: options.messageId });
+    if (fail) throw Object.assign(Error('lost PATCH'), { ambiguous: false });
+    return '1571425939013894999';
+  };
+  await f.run({ sendButton, buttonRevision: 'old' });
+  assert.equal(calls[0].messageId, undefined);
+  fail = true;
+  await f.run({ sendButton, buttonRevision: 'new' });
+  assert.equal(calls[1].messageId, '1571425939013894999');
+  assert.equal(Object.values(f.store.state.alerts)[0].replyButton.messageId, '1571425939013894999');
+  fail = false; f.now('2026-11-15T03:05:00Z');
+  assert.equal((await f.run({ sendButton, buttonRevision: 'new' })).buttons, 1);
+  assert.equal(calls[2].messageId, '1571425939013894999');
+  await f.run({ sendButton, buttonRevision: 'new' }); assert.equal(calls.length, 3);
+  assert.equal(f.posts.length, 1); assert.equal(f.edits.length, 0);
+  assert.equal(Object.values(f.store.state.alerts)[0].replyButton.revision, 'new');
+});
+
 test('button permissions can be retried without reposting alerts and all mutations share the run budget', async () => {
   const f = monitorFixture(); let attempts = 0;
   const sendButton = async () => { attempts++; throw Object.assign(Error('permission'), { ambiguous: false }); };

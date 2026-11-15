@@ -33,7 +33,10 @@ the mention channel: the bot signs their IDs with its server-only token,
 binding each to that channel. Form IDs additionally bind the current Central
 date, so an open form expires at the flip. Both interactions verify the
 same owner/server, and button clicks verify the app's message author.
-Rotating the bot token invalidates existing buttons/forms. Discord replies
+After rotating the bot token and redeploying, the monitor refreshes recorded
+buttons in place on its next polls, using a one-way key revision marker.
+Existing open forms must be reopened. No new button message is created for
+a recorded message ID, and interrupted edits retry that same ID. Discord replies
 are ephemeral with pings disabled. Server command
 visibility can additionally be narrowed through Discord's Integrations UI;
 the server-side ID checks remain authoritative.

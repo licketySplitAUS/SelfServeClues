@@ -5,7 +5,7 @@ import { babbleClient } from '../netlify/lib/history/babble.mjs';
 import { createDiscordBabbleHandler, discordBabble, deliveryLedger, deliverBabbleReply, editDiscordReply } from '../netlify/lib/discord-babble.mjs';
 import handler, { config } from '../netlify/functions/discord-babble.mjs';
 import { registerBabbleCommand, registerBabbleOnBuild } from '../tools/discord/register-babble.mjs';
-import { replyButton, replyModal, validReplyId, sendReplyButton } from '../netlify/lib/discord-babble-ui.mjs';
+import { replyButton, replyModal, validReplyId, sendReplyButton, replyKeyRevision } from '../netlify/lib/discord-babble-ui.mjs';
 
 const keys = generateKeyPairSync('ed25519');
 const settings = { ...discordBabble, publicKey: keys.publicKey.export({ type: 'spki', format: 'der' }).subarray(-32).toString('hex') };
@@ -301,4 +301,23 @@ test('bot button client distinguishes permission errors from ambiguous sends and
     }), error => error.ambiguous === ambiguous && !error.message.includes('secret-token'));
     assert.equal(posts, mode === 'foreign' ? 0 : 1);
   }
+});
+
+test('rotated buttons edit the original message and uncertain PATCH responses remain retryable', async () => {
+  const messageId = '1571425939013894999', calls = [];
+  assert.notEqual(replyKeyRevision('old'), replyKeyRevision('new'));
+  assert.equal(replyKeyRevision('new'), replyKeyRevision('new'));
+  const fetchImpl = async (url, options) => {
+    calls.push({ url: String(url), ...options });
+    return Response.json(options.method === 'PATCH' ? { id: messageId } : { guild_id: settings.guild, channel_id: mentionChannel });
+  };
+  await sendReplyButton('https://discord.com/api/webhooks/123/fixture', buttonKey, interaction().id, { guild: settings.guild, fetchImpl, messageId });
+  assert.equal(calls[1].method, 'PATCH'); assert.ok(calls[1].url.endsWith('/messages/' + messageId));
+  assert.equal(JSON.parse(calls[1].body).message_reference, undefined);
+  await assert.rejects(sendReplyButton('https://discord.com/api/webhooks/123/fixture', buttonKey, interaction().id, {
+    guild: settings.guild, messageId, fetchImpl: async (url, options) => {
+      if (options.method === 'PATCH') throw Error('private token');
+      return Response.json({ guild_id: settings.guild, channel_id: mentionChannel });
+    },
+  }), error => error.ambiguous === false && !error.message.includes('private'));
 });

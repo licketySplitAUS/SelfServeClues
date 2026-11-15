@@ -161,7 +161,7 @@ export async function fetchChat(day, { fetchImpl = fetch, signal = AbortSignal.t
 
 // One conditional lease covers the poll and all delivery checkpoints. A saved
 // 'creating' receipt is deliberately not replayed after an ambiguous POST.
-export async function runMentions({ store, webhook, now = new Date(), fetchImpl = fetch, clock = Date.now, sendButton } = {}) {
+export async function runMentions({ store, webhook, now = new Date(), fetchImpl = fetch, clock = Date.now, sendButton, buttonRevision } = {}) {
   webhookURL(webhook);
   const timestamp = now.getTime(), date = centralDate(now), deadline = clock() + 24000;
   const requestSignal = () => AbortSignal.timeout(Math.max(1, Math.min(6000, deadline - clock())));
@@ -241,14 +241,17 @@ export async function runMentions({ store, webhook, now = new Date(), fetchImpl 
       // Add one app-owned button beneath today's alerts. Existing webhook
       // receipts/updates remain independent; button failures cannot block them.
       const button = receipt.replyButton;
-      if (sendButton && receipt.date === date && receipt.messageId && sent + updated + buttonAttempts < 3 && clock() <= deadline - 6000
-        && !['creating', 'uncertain', 'sent'].includes(button?.status) && !(button?.retryAt > timestamp)) {
-        receipt.replyButton = { status: 'creating' }; await save(); buttonAttempts++;
+      // Refresh known messages in place after token rotation. An interrupted
+      // PATCH can retry the saved ID; an ambiguous new POST still cannot.
+      const refresh = !!(buttonRevision && button?.messageId && ['sent', 'updating', 'retry'].includes(button.status) && button.revision !== buttonRevision);
+      if (sendButton && (receipt.date === date || refresh) && receipt.messageId && sent + updated + buttonAttempts < 3 && clock() <= deadline - 6000
+        && (refresh || !['creating', 'uncertain', 'sent'].includes(button?.status)) && !(button?.retryAt > timestamp)) {
+        receipt.replyButton = refresh ? { ...button, status: 'updating' } : { status: 'creating' }; await save(); buttonAttempts++;
         try {
-          const messageId = await sendButton(receipt.messageId, { fetchImpl, signal: requestSignal() });
-          receipt.replyButton = { status: 'sent', messageId }; buttons++;
+          const messageId = await sendButton(receipt.messageId, { fetchImpl, signal: requestSignal(), ...(refresh ? { messageId: button.messageId } : {}) });
+          receipt.replyButton = { status: 'sent', messageId, ...(buttonRevision ? { revision: buttonRevision } : {}) }; buttons++;
         } catch (error) {
-          receipt.replyButton = { status: error.ambiguous ? 'uncertain' : 'retry', retryAt: timestamp + (error.retryAfter || 300000) };
+          receipt.replyButton = { ...receipt.replyButton, status: error.ambiguous ? 'uncertain' : 'retry', retryAt: timestamp + (error.retryAfter || 300000) };
           buttonFailures++;
         }
         await save();
