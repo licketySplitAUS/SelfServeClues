@@ -16,6 +16,7 @@ Start with the [developer guide](DEVELOPER-GUIDE.md), then [architecture](ARCHIT
 | [SQL Server failover](SQL-SERVER-FAILOVER.md) | Grid/word exports, old database mappings, staging SQL, returning to the old generator |
 | [Operations](OPERATIONS.md) | Daily checks, settings, safe troubleshooting and deployment |
 | [Discord activity statistics](DISCORD-STATISTICS.md) | Read-only bot setup, reporting totals, date filters and test installations |
+| [Babble mention alerts](BABBLE-MENTIONS.md) | Five-minute chat monitoring, Sydney times, context updates, webhook configuration and historical replay |
 | [Recovery verification record](RECOVERY-DRILL.md) | What was actually backed up and tested, and the drills still outstanding |
 | [Small daily GitHub backups](GITHUB-BACKUPS.md) | Checkpoint design and workflow template; a dated implementation record |
 | [Newer reliability and backup notes](../OPERATIONS.md) | Full runtime artifacts, daily backup/watchdog arrangement and in-memory restore rehearsal |

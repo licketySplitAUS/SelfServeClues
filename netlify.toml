@@ -10,6 +10,9 @@
 [functions."history-*"]
   node_bundler = "esbuild"
 
+[functions."babble-mentions"]
+  node_bundler = "esbuild"
+
 [functions."history-admin"]
   included_files = ["data/history/**"]
 [functions."history-current"]

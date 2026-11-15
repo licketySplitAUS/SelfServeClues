@@ -38,6 +38,7 @@ Paths are relative to the repository root. Read only sections relevant to the ta
 | `babble-publication` | Desired legacy/new route selection and operation/launch status |
 | `babble-page-views` | Append-only visit receipts/indexes and closed-day checkpoints |
 | Other operational stores | Diagnostic delivery leases and backup health; not automatically included by the four-store recovery allowlist |
+| `babble-chat-mentions-v1` | Production-only recent public chat cache and Discord mention delivery checkpoints; outside game recovery backups |
 
 History repository reads use site-wide storage for production and deployment storage otherwise. Scope varies by endpoint: original grid/word-list handlers use `getStore`, while publication/counter handlers inspect deployment context. Do not assume every preview or local run is isolated. `productionNotifications()` also allows missing context; missing `CONTEXT` is not evidence that real notification credentials are safe locally. Verify each affected handler and use explicit test credentials/mocked stores.
 
