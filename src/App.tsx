@@ -1,7 +1,9 @@
 import { reconcileFound } from '../shared/live-clues.mjs';
 import { groupCluesByGrid, readClueOrder, clueOrderCookie } from '../shared/clue-order.mjs';
 import type { ClueOrder } from '../shared/clue-order.mjs';
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { captureClueFollow, centreNextClue } from '../shared/clue-follow.mjs';
+import type { ClueFollowAnchor } from '../shared/clue-follow.mjs';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import LoadingClues from './LoadingClues';
 import VisitCounter from './VisitCounter';
@@ -146,6 +148,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   const [entryMessage, setEntryMessage] = useState("");
   const foundRef = useRef<string[]>([]);
   const drafts = useRef<Record<string, string>>({});
+  const pendingFollow = useRef<{ anchor: ClueFollowAnchor | null; puzzle: string | null; grid: string; clues: Clue[]; order: ClueOrder; view: string; filter: string } | null>(null);
   const restoredPuzzle = useRef<string | null>(null);
   const grabInFlight = useRef(false);
   const wordInputRef = useRef<HTMLInputElement>(null);
@@ -231,6 +234,13 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
     foundRef.current = found;
     fillFoundAnswers();
   }, [found, clues, view, filter, clueOrder]);
+
+  useLayoutEffect(() => {
+    const pending = pendingFollow.current;
+    pendingFollow.current = null;
+    if (!pending || pending.puzzle !== puzzle || pending.grid !== grid || pending.clues !== clues || pending.order !== clueOrder || pending.view !== view || pending.filter !== filter) return;
+    centreNextClue(document, pending.anchor, new Set(found));
+  }, [found, puzzle, grid, clues, clueOrder, view, filter]);
 
   function changeClueOrder(order: ClueOrder) {
     setClueOrder(order);
@@ -363,6 +373,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   }
 
   function unmark(word: string) {
+    pendingFollow.current = null;
     const current = foundRef.current;
     // Only a validated entry can mark a word found; checkboxes can clear it.
     if (!current.includes(word)) return;
@@ -392,6 +403,9 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
       fillAnswer(word);
       return "2";
     }
+    // Only genuine new entries request scrolling. A bulk batch replaces this
+    // request and centres once, after React commits the final found state.
+    pendingFollow.current = { anchor: captureClueFollow(document, word, foundRef.current), puzzle, grid, clues, order: clueOrder, view, filter };
     const next = [...foundRef.current, word];
     foundRef.current = next;
     setFound(next);
@@ -492,7 +506,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
       if (bridge.showAll === externalShow) delete bridge.showAll;
       if (bridge.AddBulkWord === externalBulk) delete bridge.AddBulkWord;
     };
-  }, [clues, puzzle, bulkWords]);
+  }, [clues, puzzle, grid, bulkWords, clueOrder, view, filter]);
 
   if (!publishedPuzzle && (initialising || (!hasSolved && words.length > 0 && /^[A-Z]{25}$/i.test(grid)))) return <LoadingClues />;
 

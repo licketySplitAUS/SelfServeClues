@@ -223,6 +223,71 @@ app.whenReady().then(async () => {
     await until(`document.querySelectorAll('[data-answer-word]').length===197`);
     assert.equal(await run(`document.querySelector('[name="clue-order"][value=alphabetical]').checked`), true, 'Alphabetical cookie also persists across both pages');
     console.log('PASS: all 25 grid groups, exact starting paths, duplicate progress, Off keyboard navigation, drafts, Expert bridge and cookie on both pages. Screenshots: ' + out);
+    // Follow new entries after React commits, without changing focus or
+    // interfering with explicit filters, editing, or unique progress counts.
+    await run('localStorage.clear()');
+    await win.loadURL(`http://127.0.0.1:${server.address().port}/history-preview.html`);
+    await until(`document.querySelectorAll('[data-answer-word]').length===197 && typeof window.AddBabbleWord==='function'`);
+    const scrollWords = await run(`Array.from(document.querySelectorAll('[data-answer-word]')).map(field=>field.dataset.answerWord)`);
+    const settle = () => run('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+    await run(`window.followScrolls=[]; window.realClueScroll=Element.prototype.scrollIntoView; Element.prototype.scrollIntoView=function(options){if(this.matches('.clues tr')&&this.querySelector('[data-answer-word]')) window.followScrolls.push({word:this.querySelector('[data-answer-word]').dataset.answerWord,name:this.querySelector('[data-answer-word]').name});return window.realClueScroll.call(this,options)}; document.activeElement.blur(); window.scrollTo({top:0,behavior:'instant'})`);
+    const centred = word => `(() => {const row=document.querySelector('[data-answer-word="${word}"]').closest('tr'),rect=row.getBoundingClientRect();return Math.abs(rect.top+rect.height/2-innerHeight/2)<4})()`;
+    await run(`window.AddBabbleWord('${scrollWords[80]}')`);
+    await until(`window.followScrolls.length===1 && ${centred(scrollWords[81])}`);
+    await capture('follow-alphabetical.png');
+    assert.equal(await run('window.followScrolls[0].word'), scrollWords[81]);
+    assert.equal(await run('document.activeElement.tagName'), 'BODY', 'Automatic following does not move focus');
+    await run(`window.scrollTo({top:0,behavior:'instant'}); window.AddBabbleWord('${scrollWords[80]}'); window.AddBabbleWord('zzzzzzzzzz')`);
+    await settle();
+    assert.equal(await run('window.followScrolls.length'), 1, 'Duplicate and invalid entries do not request scrolling');
+    assert.equal(await run('scrollY'), 0);
+    await run(`document.querySelector('[data-answer-word="${scrollWords[80]}"]').closest('tr').querySelector('input[type=checkbox]').click()`);
+    await settle(); assert.equal(await run('window.followScrolls.length'), 1, 'Clearing a tick does not follow another clue');
+    await select(2);
+    await run(`document.querySelector('[data-answer-word="${scrollWords[80]}"]').closest('tr').setAttribute('data-babble-expert-active-clue',''); window.AddBabbleWord('${scrollWords[80]}')`);
+    await until(`window.followScrolls.length===2 && ${centred(scrollWords[81])}`);
+    assert.equal(await run(`!!document.querySelector('[data-answer-word="${scrollWords[80]}"]')`), false, 'Off removes the filled alphabetical row');
+    await select(1);
+    await run(`window.AddBabbleWord('${scrollWords[90]}')`);
+    await settle(); assert.equal(await run('window.followScrolls.length'), 2, 'On has no unfilled clue to follow');
+    await select(0); await setOrder('grid');
+    await until(`document.querySelectorAll('.gridheading').length===25`);
+    assert.equal(await run('window.followScrolls.length'), 2, 'Changing filters/order does not request progress scrolling');
+    await run(`(() => {const field=document.querySelectorAll('${selector}')[1];if(field.closest('tr').querySelector('input[type=checkbox]').checked)field.closest('tr').querySelector('input[type=checkbox]').click();field.focus({preventScroll:true});window.followChosen=field.name;const fields=Array.from(document.querySelectorAll('[data-answer-word]'));const index=fields.indexOf(field);window.followExpected=fields.slice(index+1).concat(fields.slice(0,index+1)).find(next=>next.dataset.answerWord!=='${duplicate}'&&!next.closest('tr').querySelector('input[type=checkbox]').checked&&next.getClientRects().length).name;})()`);
+    await run(`window.AddBabbleWord('${duplicate}')`);
+    await until(`window.followScrolls.length===3`);
+    await capture('follow-grid.png');
+    assert.equal(await run('window.followScrolls[2].name'), await run('window.followExpected'), 'Repeated grid clues follow the exact active starting tile');
+    assert.equal(await run('document.activeElement.name'), await run('window.followChosen'));
+    const bulkFollow = scrollWords.slice(100, 104);
+    await input('textarea[name=bulkWords]', bulkFollow.join('\n')); await run('window.AddBulkWord()');
+    await until(`window.followScrolls.length===4`); await settle();
+    assert.equal(await run('window.followScrolls.length'), 4, 'A synchronous Bulk Add batch scrolls once');
+    const bulkExport = (await run('window.GetAllWords()')).toUpperCase().split('\n');
+    assert.ok(bulkFollow.every(word => bulkExport.includes(word)), 'Following never changes Bulk Add results');
+    await run(`(() => {const fields=Array.from(document.querySelectorAll('[data-answer-word]')).filter(field=>!field.closest('tr').querySelector('input[type=checkbox]').checked);const editor=fields[0], incoming=fields.find(field=>field.dataset.answerWord!==editor.dataset.answerWord);editor.focus({preventScroll:true});editor.value='unfinished draft';window.editingFollowName=editor.name;window.incomingFollowWord=incoming.dataset.answerWord;Object.defineProperty(document,'hasFocus',{configurable:true,value:()=>true});window.scrollTo({top:0,behavior:'instant'});window.AddBabbleWord(window.incomingFollowWord);})()`);
+    await settle();
+    assert.equal(await run('window.followScrolls.length'), 4, 'Another clue being edited suppresses automatic following');
+    assert.equal(await run('document.activeElement.name'), await run('window.editingFollowName'));
+    assert.equal(await run('document.activeElement.value'), 'unfinished draft');
+    assert.equal(await run('scrollY'), 0);
+    await run('delete document.hasFocus; Element.prototype.scrollIntoView=window.realClueScroll; void 0');
+    await run(`(() => {const editor=document.querySelector('[name="'+window.editingFollowName+'"]');editor.closest('tr').setAttribute('data-babble-expert-active-clue','');document.activeElement.blur();const incoming=Array.from(document.querySelectorAll('[data-answer-word]')).find(field=>field.dataset.answerWord!==editor.dataset.answerWord&&!field.closest('tr').querySelector('input[type=checkbox]').checked);window.scrollTo({top:0,behavior:'instant'});window.AddBabbleWord(incoming.dataset.answerWord);})()`);
+    await settle();
+    assert.equal(await run('scrollY'), 0, 'Another unfinished Resources selection keeps its place');
+    await run(`document.querySelector('[data-babble-expert-active-clue]').removeAttribute('data-babble-expert-active-clue')`);
+    await input('#add-word', 're'); await run(`document.querySelector('.findword').click()`);
+    await until(`document.querySelector('#clues input').value==='RE'`);
+    const unrelated = scrollWords.find(word => !word.startsWith('RE') && !bulkExport.includes(word) && word !== duplicate);
+    await run(`window.scrollTo({top:0,behavior:'instant'}); window.AddBabbleWord('${unrelated}')`);
+    await settle();
+    assert.equal(await run('scrollY'), 0, 'An entry outside the selected prefix does not move the filtered view');
+    assert.equal(await run(`document.querySelector('#clues input').value`), 'RE');
+    assert.equal(await run(`document.activeElement.id`), 'add-word', 'Find keeps its normal entry-box focus');
+    await win.loadURL(`http://127.0.0.1:${server.address().port}/history-preview.html`);
+    await until(`window.GetAllWords?.().toUpperCase().includes('${unrelated}')`); await settle();
+    assert.equal(await run('scrollY'), 0, 'Restoring saved progress does not auto-scroll');
+    console.log('PASS: next unfilled clue centres in A–Z, Grid and Off; duplicates/invalid/On/mode changes do not scroll; bulk batches coalesce and editing/focus are preserved.');
     // Optional real legacy source from the sibling Babble checkout. Inject the
     // shared asset locally, as its production build transform would load it.
     if (process.env.BABBLE_LEGACY_CLUES) {
@@ -235,6 +300,7 @@ app.whenReady().then(async () => {
       assert.equal(await run('GetAllWords()'), '', 'Legacy checkbox cannot export an unknown answer');
       await run(`document.myForm.edt1.focus(); document.myForm.edt1.select()`);
       await win.webContents.insertText(legacyWord.toUpperCase()); await enter();
+      await until('document.myForm.check1.checked');
       assert.equal(await run('document.myForm.check1.checked'), true, 'Real legacy slot checks its answer');
       assert.equal(await run('document.activeElement.name'), 'edt1');
       await enter();
@@ -242,8 +308,10 @@ app.whenReady().then(async () => {
       assert.ok((await run('GetAllWords()')).includes(legacyWord), 'Legacy bridge exports the slot entry');
       await run('showOff(); document.myForm.edt2.focus(); document.myForm.edt2.select()');
       await win.webContents.insertText(await run('decrypt(lWordArray[1])')); await enter();
+      await until('document.myForm.check2.checked && !document.myForm.edt2.getClientRects().length');
       assert.equal(await run('lShow'), 3, 'Legacy checking preserves Off view');
       await enter();
+      await until(`document.activeElement.name==='edt3'`);
       assert.equal(await run('document.activeElement.name'), 'edt3', 'Legacy Off skips the hidden completed slot');
       console.log('PASS: real legacy source slot checking, export and double Enter in All and Off.');
     }

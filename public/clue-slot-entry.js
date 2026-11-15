@@ -29,7 +29,10 @@
     const ordered = fields.slice(start).concat(fields.slice(0, start));
     const next = ordered.find(input => !input.disabled && input.getClientRects().length &&
       !input.closest('tr')?.querySelector('input[type="checkbox"]')?.checked);
-    if (next) { next.focus(); next.select(); }
+    if (next) {
+      next.focus({ preventScroll: true }); next.select();
+      next.closest('tr')?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+    }
   }
   // A tick records an entered answer; it must never supply an unknown word.
   // Capture before legacy inline handlers can persist an invalid tick.

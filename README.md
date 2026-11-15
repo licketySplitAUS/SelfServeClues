@@ -39,6 +39,8 @@ The compact **Add word** bar follows Lickety's original clues page: press Enter 
 
 Above the clues, **Order → A–Z / Grid** switches between the usual alphabetical list and all 25 starting tiles, labelled by row, column and letter. The full names, Alphabetical and Grid position, are available as hover text and screen-reader labels. Grid groups include only words that can follow a valid path from that exact tile, sorted alphabetically; empty groups say **no words**, and each group ends with **Back to top**. A word may appear under several valid starts, with one shared tick and one entry in totals and exports. A one-year preference cookie remembers the selected mode across Lickety's Clues and Self Serve on `r46.me`; drafts and found words survive changing modes.
 
+When a new word is filled, the page centres the next visible unfilled clue in the current order, wrapping to the first remaining gap when needed. Grid mode follows the exact starting-tile copy being used. This scrolls without moving keyboard focus or changing an answer. Duplicate/invalid entries, unticking words, saved-progress reloads and words outside the current filter do not trigger it; neither does adding a word while you are editing another clue or entry. Bulk Add centres once per batch. The existing second Enter still selects the next clue and centres it.
+
 The page uses the same fixed 718px frame, 470px clues/board area, 230px sidebar, image tiles, and typography as Lickety's original clues page, so switching sources in Babble Expert does not change the page scale or alignment.
 
 ## Local testing
