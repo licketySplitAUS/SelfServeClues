@@ -21,6 +21,11 @@ archive lacks UTC offsets; during the repeated autumn hour, document order
 determines which occurrence is possible, choosing the earlier instant if both
 remain possible. The source archive link is always included.
 
+Babble can leave a midnight post on the previous day's archive during the
+grid change. After an observed 11 pm post, a following midnight-hour post is
+dated the next Central day while retaining its original archive link. Other
+backwards clock changes still fail validation and retain saved progress.
+
 ## Prompt alerts without waiting for a quiet chat
 
 The first post goes out as soon as a poll finds the mention, usually within

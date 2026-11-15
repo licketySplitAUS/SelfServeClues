@@ -21,7 +21,7 @@ function memoryStore() {
 function monitorFixture() {
   const store = memoryStore(), calls = [], posts = [], edits = [];
   let rows = ['Before', 'Thanks Lickety'], current = day, clock = now;
-  const datedRows = new Map();
+  const datedRows = new Map(), archiveHTML = new Map();
   let discordFailure = null, babbleFailure = false;
   const fetchImpl = async (url, options) => {
     url = String(url); calls.push(url);
@@ -33,10 +33,11 @@ function monitorFixture() {
     if (babbleFailure) throw Error('Private URL must not reach logs');
     const match = new URL(url).pathname.match(/^\/(\d+)\/(\d\d)\/(\d\d)\/(\d{4})$/);
     const date = match && `${match[4]}-${match[2]}-${match[3]}`;
-    return new Response(url.endsWith('.com/') ? link(current) : page(datedRows.get(date) || rows, date));
+    return new Response(url.endsWith('.com/') ? link(current) : archiveHTML.get(date) || page(datedRows.get(date) || rows, date));
   };
   return { store, calls, posts, edits, run: () => runMentions({ store, webhook: hook, now: clock, fetchImpl }),
     rows(value, date) { if (date) datedRows.set(date, value); else rows = value; }, day(value) { current = value; }, now(value) { clock = new Date(value); },
+    html(value, date = day.date) { archiveHTML.set(date, value); },
     discordFailure(value) { discordFailure = value; }, babbleFailure(value) { babbleFailure = value; } };
 }
 
@@ -82,6 +83,19 @@ test('groups include one prior message and three after the last nearby mention',
   assert.deepEqual(groups[1].messages.map(row => row.text), ['Before 2', 'lickety', 'After']);
   assert.equal(groups[1].replies, 1);
   assert.equal(mentionGroups(rows.slice(2, 3))[0].messages.length, 1, 'First message of a log needs no invented predecessor');
+});
+
+test('archive tail can cross midnight during the flip without accepting other backwards clocks', () => {
+  const html = page(['Late mention Lickety', 'At midnight', 'Just after midnight'])
+    .replace('8:00 pm', '11:50 pm').replace('8:01 pm', '12:00 am').replace('8:02 pm', '12:01 am');
+  const rows = parseChat(html, day);
+  assert.deepEqual(rows.map(row => row.at), ['2026-11-15T05:50:00.000Z', '2026-11-15T06:00:00.000Z', '2026-11-15T06:01:00.000Z']);
+  assert.equal(rows[1].date, day.date, 'Archive identity stays with its source day');
+  assert.deepEqual(parseChat(html, day), rows, 'Rollover IDs stay stable');
+  assert.throws(() => parseChat(html.replace('12:01 am', '11:49 pm'), day), /chronological/);
+  assert.throws(() => parseChat(html.replace('12:01 am', '12:00 am').replace('12:00 am', '12:02 am'), day), /chronological/);
+  assert.throws(() => chatInstant(day.date, '12:00 am', Date.parse('2026-11-15T02:00:00Z')), /chronological/);
+  assert.equal(chatInstant('2026-12-31', '12:00 am', Date.parse('2027-01-01T05:59:00Z')), '2027-01-01T06:00:00.000Z');
 });
 
 test('Discord rendering escapes chat markup, disables pings and attaches oversized conversations in full', () => {
@@ -165,6 +179,23 @@ test('midnight finalizes the previous archive once and carries context into the 
   assert.match(f.edits[0].embeds[0].description, /Late reply before midnight/);
   assert.match(f.edits[0].embeds[0].description, /Second reply after midnight/);
   assert.match(f.edits[0].embeds[0].footer.text, /Includes three/);
+});
+
+test('midnight post left on yesterday archive does not block the new grid mentions', async () => {
+  const f = monitorFixture();
+  f.now('2026-11-15T05:55:00Z');
+  f.html(page(['Last message']).replace('8:00 pm', '11:50 pm'));
+  await f.run();
+  f.html(page(['Last message', 'Flip message']).replace('8:00 pm', '11:50 pm').replace('8:01 pm', '12:00 am'));
+  f.rows(['Clues are up', 'TY Lickety', 'Thanks lICKetY and Yea re what you said.'], '2026-11-15');
+  f.day({ puzzle: 8642, date: '2026-11-15' }); f.now('2026-11-15T06:25:00Z');
+  const result = await f.run();
+  assert.equal(result.outcome, 'checked'); assert.equal(result.sent, 1);
+  assert.equal(f.store.state.days[0].closed, true);
+  assert.equal(f.store.state.days[1].messages.length, 3);
+  assert.match(f.posts[0].embeds[0].description, /TY Lickety/);
+  assert.match(f.posts[0].embeds[0].description, /Thanks lICKetY/);
+  await f.run(); assert.equal(f.posts.length, 1); assert.equal(f.edits.length, 0);
 });
 
 test('conditional lease excludes overlapping runs and unknown state is never overwritten', async () => {

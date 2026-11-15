@@ -42,6 +42,17 @@ export function chatInstant(date, clock, previous = -Infinity) {
     const instant = wall + offset * 3600000, p = parts(new Date(instant));
     if (centralDate(new Date(instant)) === date && Number(p.hour) === hour && p.minute === match[2] && instant >= previous) return new Date(instant).toISOString();
   }
+  // Babble can leave posts made during the flip on yesterday's archive.
+  // Accept only the midnight hour following an observed late-night post;
+  // other backwards clocks must still fail without changing saved progress.
+  if (hour === 0 && Number.isFinite(previous)) {
+    const prior = parts(new Date(previous));
+    const nextDate = new Date(Date.parse(`${date}T12:00:00Z`) + 86400000).toISOString().slice(0, 10);
+    const priorDate = centralDate(new Date(previous));
+    if ((priorDate === date && Number(prior.hour) === 23) || (priorDate === nextDate && Number(prior.hour) === 0)) {
+      return chatInstant(nextDate, clock, previous);
+    }
+  }
   throw Error('Archive chat times are not in chronological Central time order');
 }
 
