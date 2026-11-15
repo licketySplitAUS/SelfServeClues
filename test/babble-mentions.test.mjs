@@ -35,7 +35,7 @@ function monitorFixture() {
     const date = match && `${match[4]}-${match[2]}-${match[3]}`;
     return new Response(url.endsWith('.com/') ? link(current) : archiveHTML.get(date) || page(datedRows.get(date) || rows, date));
   };
-  return { store, calls, posts, edits, run: () => runMentions({ store, webhook: hook, now: clock, fetchImpl }),
+  return { store, calls, posts, edits, run: (options = {}) => runMentions({ store, webhook: hook, now: clock, fetchImpl, ...options }),
     rows(value, date) { if (date) datedRows.set(date, value); else rows = value; }, day(value) { current = value; }, now(value) { clock = new Date(value); },
     html(value, date = day.date) { archiveHTML.set(date, value); },
     discordFailure(value) { discordFailure = value; }, babbleFailure(value) { babbleFailure = value; } };
@@ -224,6 +224,46 @@ test('initial backlogs are limited to three Discord mutations per scheduled run'
   assert.equal((await f.run()).sent, 3); assert.equal(f.posts.length, 3);
   assert.equal((await f.run()).sent, 1); assert.equal(f.posts.length, 4);
   await f.run(); assert.equal(f.posts.length, 4);
+});
+
+test('one app reply button is added beneath an alert, without changing its webhook or duplicating updates', async () => {
+  const f = monitorFixture(), buttons = [];
+  const sendButton = async id => { buttons.push(id); return '1571425939013894999'; };
+  const first = await f.run({ sendButton });
+  assert.equal(first.sent, 1); assert.equal(first.buttons, 1);
+  assert.deepEqual(buttons, ['123456789012345678']);
+  await f.run({ sendButton }); assert.equal(buttons.length, 1);
+  f.rows(['Before', 'Thanks Lickety', 'A new reply']);
+  assert.equal((await f.run({ sendButton })).updated, 1);
+  assert.equal(buttons.length, 1); assert.equal(f.posts.length, 1);
+  assert.equal(Object.values(f.store.state.alerts)[0].replyButton.status, 'sent');
+});
+
+test('uncertain button creation is not replayed and cannot stop the existing mention alert updating', async () => {
+  const f = monitorFixture(); let attempts = 0;
+  const sendButton = async () => { attempts++; throw Object.assign(Error('lost response'), { ambiguous: true }); };
+  assert.equal((await f.run({ sendButton })).uncertain, 1);
+  f.rows(['Before', 'Thanks Lickety', 'Another reply']);
+  const next = await f.run({ sendButton });
+  assert.equal(next.updated, 1); assert.equal(next.uncertain, 1); assert.equal(attempts, 1);
+  assert.equal(f.posts.length, 1);
+});
+
+test('button permissions can be retried without reposting alerts and all mutations share the run budget', async () => {
+  const f = monitorFixture(); let attempts = 0;
+  const sendButton = async () => { attempts++; throw Object.assign(Error('permission'), { ambiguous: false }); };
+  assert.equal((await f.run({ sendButton })).buttonFailures, 1);
+  await f.run({ sendButton }); assert.equal(attempts, 1);
+  f.now('2026-11-15T03:05:00Z');
+  await f.run({ sendButton }); assert.equal(attempts, 2); assert.equal(f.posts.length, 1);
+  const backlog = monitorFixture();
+  backlog.rows(Array.from({ length: 24 }, (_, index) => index % 6 === 0 ? 'lickety' : 'reply'));
+  let cards = 0;
+  for (let poll = 0; poll < 4; poll++) {
+    const result = await backlog.run({ sendButton: async () => String(1571425939013894000n + BigInt(++cards)) });
+    assert.ok(result.sent + result.updated + result.buttons <= 3);
+  }
+  assert.equal(cards, 4); assert.equal(backlog.posts.length, 4);
 });
 
 test('archive bounds and changed chronology fail instead of silently dropping or reordering messages', async () => {

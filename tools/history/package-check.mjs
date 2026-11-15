@@ -12,7 +12,7 @@ const directory = path.join(root, 'artifacts/history-packages');
 await fs.mkdir(directory, { recursive: true });
 const results = await zipFunctions(path.join(root, 'netlify/functions'), directory, {
   basePath: root, repositoryRoot: root,
-  config: { 'history-*': { nodeBundler: 'esbuild' }, 'babble-mentions': { nodeBundler: 'esbuild' }, ...Object.fromEntries(['history-admin', 'history-current', 'history-process', 'history-recovery', 'history-unseen-words'].map(name => [name, { includedFiles: ['data/history/**'], includedFilesBasePath: root, nodeBundler: 'esbuild' }])) },
+  config: { 'history-*': { nodeBundler: 'esbuild' }, 'babble-mentions': { nodeBundler: 'esbuild' }, 'discord-babble': { nodeBundler: 'esbuild' }, ...Object.fromEntries(['history-admin', 'history-current', 'history-process', 'history-recovery', 'history-unseen-words'].map(name => [name, { includedFiles: ['data/history/**'], includedFilesBasePath: root, nodeBundler: 'esbuild' }])) },
 });
 for (const result of results.filter(item => item.name.startsWith('history-'))) {
   assert.ok(result.size < 10000000, 'History function package remains small');
@@ -24,6 +24,10 @@ assert.equal(results.find(item => item.name === 'history-tick')?.schedule, '* 5-
 assert.equal(results.find(item => item.name === 'history-launch')?.schedule, '* 5-6 22 10 *');
 assert.equal(results.find(item => item.name === 'babble-mentions')?.schedule, '*/5 * * * *');
 assert.ok(results.find(item => item.name === 'babble-mentions')?.size < 2000000, 'Chat monitor must not bundle puzzle history or the solver dictionary');
+const discordBabble = results.find(item => item.name === 'discord-babble');
+assert.ok(discordBabble?.size < 2000000, 'Discord reply receiver must not bundle puzzle history or the solver dictionary');
+assert.ok(discordBabble.routes?.some(route => route.literal === '/api/discord-babble'), 'Discord receiver route is packaged');
+assert.equal(discordBabble.schedule, undefined, 'Replies use pushed interactions, not a schedule');
 assert.equal(results.some(item => item.name === 'history-retry'), false);
 assert.equal(results.some(item => item.name === 'history-flip-summary'), false);
 console.log('PASS: Netlify function bundling, schedule and route extraction; no network or deployment performed.');

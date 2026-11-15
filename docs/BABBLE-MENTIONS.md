@@ -6,6 +6,11 @@ archive every five minutes. It searches **message text**, ignoring case, for
 `babble expert` (allowing whitespace between the words). A username alone does
 not trigger an alert. No Babble login or chat posting is involved.
 
+When the separate Discord reply feature is enabled, the Babble Replies bot
+adds a **Reply to Babble** button as a small referenced reply below today's
+alerts. Button failures never stop the existing alert delivery/updates. See
+[Discord replies](DISCORD-BABBLE-REPLIES.md) for setup and owner-only forms.
+
 Each Discord alert reads oldest first:
 
 1. One message before the mention, when available.

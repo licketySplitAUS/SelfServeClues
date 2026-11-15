@@ -161,7 +161,7 @@ export async function fetchChat(day, { fetchImpl = fetch, signal = AbortSignal.t
 
 // One conditional lease covers the poll and all delivery checkpoints. A saved
 // 'creating' receipt is deliberately not replayed after an ambiguous POST.
-export async function runMentions({ store, webhook, now = new Date(), fetchImpl = fetch, clock = Date.now } = {}) {
+export async function runMentions({ store, webhook, now = new Date(), fetchImpl = fetch, clock = Date.now, sendButton } = {}) {
   webhookURL(webhook);
   const timestamp = now.getTime(), date = centralDate(now), deadline = clock() + 24000;
   const requestSignal = () => AbortSignal.timeout(Math.max(1, Math.min(6000, deadline - clock())));
@@ -179,7 +179,7 @@ export async function runMentions({ store, webhook, now = new Date(), fetchImpl 
     if (!result.modified || !result.etag) throw Error('Chat monitor lease changed');
     etag = result.etag;
   };
-  let sent = 0, updated = 0;
+  let sent = 0, updated = 0, buttons = 0, buttonAttempts = 0, buttonFailures = 0;
   try {
     if (state.identity?.date !== date) {
       const identity = puzzleLink(await htmlPage(origin + '/', fetchImpl, requestSignal()));
@@ -211,35 +211,52 @@ export async function runMentions({ store, webhook, now = new Date(), fetchImpl 
     state.alerts = Object.fromEntries(Object.entries(state.alerts).filter(([, alert]) => alert.date >= cutoff));
     state.failures = 0; state.nextPollAt = 0; delete state.lastError;
     for (const group of mentionGroups(messages)) {
-      if (clock() > deadline - 6000 || sent + updated >= 3) break;
+      if (clock() > deadline - 6000 || sent + updated + buttonAttempts >= 3) break;
       const alert = discordAlert(group), fingerprint = hash(JSON.stringify(alert));
       const mentionIds = group.messages.filter(row => row.mention).map(row => row.id);
       // A conversation can outlive the cached days. Reuse its post if its
       // original first mention has aged out but a later mention remains.
       let receipt = state.alerts[group.id] || Object.values(state.alerts).find(alert => alert.mentions?.some(id => mentionIds.includes(id)));
-      if (receipt?.fingerprint === fingerprint || receipt?.status === 'creating' || receipt?.status === 'uncertain' || receipt?.retryAt > timestamp) continue;
+      if (receipt?.status === 'creating' || receipt?.status === 'uncertain' || receipt?.retryAt > timestamp) continue;
       receipt ||= state.alerts[group.id] = { date: group.messages.find(row => row.mention).date };
       receipt.date = group.messages.filter(row => row.mention).at(-1).date;
       receipt.mentions = mentionIds;
-      const creating = !receipt.messageId;
-      receipt.status = creating ? 'creating' : 'updating'; await save();
-      try {
-        receipt.messageId = await sendAlert(webhook, alert, { messageId: receipt.messageId, fetchImpl, signal: requestSignal() });
-        receipt.status = 'sent'; receipt.fingerprint = fingerprint; delete receipt.retryAt;
-        if (creating) sent++; else updated++;
-      } catch (error) {
-        receipt.status = error.ambiguous ? 'uncertain' : 'retry';
-        receipt.retryAt = timestamp + (error.retryAfter || 300000);
-        state.lastError = error.ambiguous ? 'discord-send-uncertain' : 'discord-delivery-failed';
-        // Discord rate limits apply to the whole webhook, not just one alert.
-        state.nextPollAt = receipt.retryAt;
-        await save(); break;
+      if (receipt.fingerprint !== fingerprint) {
+        const creating = !receipt.messageId;
+        receipt.status = creating ? 'creating' : 'updating'; await save();
+        try {
+          receipt.messageId = await sendAlert(webhook, alert, { messageId: receipt.messageId, fetchImpl, signal: requestSignal() });
+          receipt.status = 'sent'; receipt.fingerprint = fingerprint; delete receipt.retryAt;
+          if (creating) sent++; else updated++;
+        } catch (error) {
+          receipt.status = error.ambiguous ? 'uncertain' : 'retry';
+          receipt.retryAt = timestamp + (error.retryAfter || 300000);
+          state.lastError = error.ambiguous ? 'discord-send-uncertain' : 'discord-delivery-failed';
+          // Discord rate limits apply to the whole webhook, not just one alert.
+          state.nextPollAt = receipt.retryAt;
+          await save(); break;
+        }
+        await save();
       }
-      await save();
+      // Add one app-owned button beneath today's alerts. Existing webhook
+      // receipts/updates remain independent; button failures cannot block them.
+      const button = receipt.replyButton;
+      if (sendButton && receipt.date === date && receipt.messageId && sent + updated + buttonAttempts < 3 && clock() <= deadline - 6000
+        && !['creating', 'uncertain', 'sent'].includes(button?.status) && !(button?.retryAt > timestamp)) {
+        receipt.replyButton = { status: 'creating' }; await save(); buttonAttempts++;
+        try {
+          const messageId = await sendButton(receipt.messageId, { fetchImpl, signal: requestSignal() });
+          receipt.replyButton = { status: 'sent', messageId }; buttons++;
+        } catch (error) {
+          receipt.replyButton = { status: error.ambiguous ? 'uncertain' : 'retry', retryAt: timestamp + (error.retryAfter || 300000) };
+          buttonFailures++;
+        }
+        await save();
+      }
     }
     state.lastCheckedAt = now.toISOString();
-    return { outcome: state.lastError || 'checked', posts: today.messages.length, sent, updated,
-      uncertain: Object.values(state.alerts).filter(alert => ['creating', 'uncertain'].includes(alert.status)).length };
+    return { outcome: state.lastError || 'checked', posts: today.messages.length, sent, updated, buttons, buttonFailures,
+      uncertain: Object.values(state.alerts).filter(alert => ['creating', 'uncertain'].includes(alert.status) || ['creating', 'uncertain'].includes(alert.replyButton?.status)).length };
   } catch {
     state.failures = Math.min(6, (state.failures || 0) + 1);
     state.nextPollAt = timestamp + Math.min(3600000, 300000 * 2 ** (state.failures - 1));
