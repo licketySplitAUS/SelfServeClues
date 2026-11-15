@@ -9,7 +9,20 @@ app.disableHardwareAcceleration();
 const deadline = setTimeout(() => { console.error('Clue filter check timed out'); app.exit(1); }, 30000);
 app.whenReady().then(async () => {
   const { previewServer } = await import('./serve.mjs');
+  const { groupCluesByGrid } = await import('../../shared/clue-order.mjs');
+  const fixture = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../public/history-preview-data/snapshot.json'), 'utf8')).current;
   const server = previewServer();
+  const serveStatic = server.listeners('request')[0];
+  server.removeAllListeners('request');
+  server.on('request', (request, response) => {
+    if (request.url === '/api/wordlist') {
+      response.writeHead(200, { 'content-type': 'text/plain' }); response.end(fixture.words.map(row => row.word).join('\n')); return;
+    }
+    if (request.url === '/api/grab' || request.url === '/api/grid') {
+      response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify({ letters: fixture.letters, puzzle: String(fixture.puzzle), date: fixture.date })); return;
+    }
+    serveStatic(request, response);
+  });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   if (process.env.BABBLE_EXPERT_PRELOAD) ipcMain.handle('create-clues:enabled', () => false);
   const win = new BrowserWindow({ show: false, webPreferences: { preload: process.env.BABBLE_EXPERT_PRELOAD || undefined, offscreen: true, backgroundThrottling: false, sandbox: true, contextIsolation: true, nodeIntegration: false } });
@@ -130,6 +143,86 @@ app.whenReady().then(async () => {
     await win.loadURL(`http://127.0.0.1:${server.address().port}/history-preview.html`);
     await until(`typeof window.GetAllWords==='function' && window.GetAllWords().toUpperCase().includes('${slotWords[0]}')`);
     assert.ok((await run('window.GetAllWords()')).toUpperCase().includes(slotWords[0]), 'Slot entries persist across reload');
+    // The grid order duplicates clue rows while preserving unique progress.
+    await run('localStorage.clear()');
+    await win.loadURL(`http://127.0.0.1:${server.address().port}/history-preview.html`);
+    await until(`document.querySelectorAll('[data-answer-word]').length===197`);
+    const expected = groupCluesByGrid(fixture.letters, fixture.words.map(row => ({ word: row.word.toUpperCase() })));
+    const setOrder = order => run(`document.querySelector('[name="clue-order"][value="${order}"]').click()`);
+    await setOrder('grid');
+    await until(`document.querySelectorAll('.gridheading').length===25`);
+    assert.deepEqual(await run(`Array.from(document.querySelectorAll('.gridheading')).map(row=>row.textContent)`), expected.map(group => `Row ${group.row}, Column ${group.column} - ${group.letter}`));
+    assert.deepEqual(await run(`Array.from(document.querySelectorAll('[data-grid-position]')).map(body=>Array.from(body.querySelectorAll('[data-answer-word]')).map(field=>field.dataset.answerWord))`), expected.map(group => group.clues.map(clue => clue.word)));
+    assert.equal(await run(`document.querySelectorAll('.gridempty').length`), expected.filter(group => !group.clues.length).length);
+    assert.equal(await run(`document.querySelector('.gridempty').textContent`), 'no words');
+    assert.equal(await run(`document.querySelectorAll('.groupback').length`), 25);
+    assert.ok(await run(`document.cookie.includes('lickety_clue_order=grid')`));
+    const duplicate = expected.flatMap(group => group.clues).find(clue => expected.filter(group => group.clues.some(row => row.word === clue.word)).length > 1).word;
+    const selector = `[data-answer-word="${duplicate}"]`;
+    await run(`document.querySelectorAll('${selector}')[1].focus(); document.querySelectorAll('${selector}')[1].select()`);
+    await win.webContents.insertText(duplicate.toLowerCase()); await enter();
+    await until(`Array.from(document.querySelectorAll('${selector}')).every(field=>field.closest('tr').querySelector('input[type=checkbox]').checked && field.value==='${duplicate.toLowerCase()}')`);
+    assert.equal((await run('window.GetAllWords()')).trim(), duplicate.toLowerCase());
+    assert.ok(await run(`document.querySelector('.totals').textContent.includes('On\u00a0 :1')`), 'Repeated copies count once');
+    await run(`document.querySelector('${selector}').closest('tr').querySelector('input[type=checkbox]').click()`);
+    await until(`Array.from(document.querySelectorAll('${selector}')).every(field=>!field.closest('tr').querySelector('input[type=checkbox]').checked)`);
+    await select(2);
+    await run(`document.querySelectorAll('${selector}')[1].focus(); document.querySelectorAll('${selector}')[1].select()`);
+    await win.webContents.insertText(duplicate.toLowerCase()); await enter();
+    await until(`Array.from(document.querySelectorAll('${selector}')).every(field=>!field.getClientRects().length)`);
+    const completedName = await run(`document.querySelectorAll('${selector}')[1].name`);
+    let expertNext;
+    if (process.env.BABBLE_EXPERT_PRELOAD) {
+      const { nextClueEntry } = require(path.join(path.dirname(process.env.BABBLE_EXPERT_PRELOAD), 'clue-entry.js'));
+      expertNext = await run(`(${nextClueEntry.toString()})(document,${JSON.stringify({ name: completedName, answerKey: duplicate })})`);
+    }
+    await enter(); await until(`!!document.activeElement.dataset.answerWord`);
+    assert.notEqual(await run('document.activeElement.name'), completedName, 'Double Enter advances after a grid row becomes hidden');
+    if (expertNext) assert.equal(await run('document.activeElement.name'), expertNext.identity.name, 'Installed Expert and hosted double Enter agree on the next grid row');
+    await select(0);
+    const draftWord = expected.flatMap(group => group.clues).find(clue => clue.word !== duplicate).word;
+    await editSlot(draftWord, 'unfinished');
+    await setOrder('alphabetical');
+    assert.equal(await run(`document.querySelector('[data-answer-word="${draftWord}"]').value`), 'unfinished', 'Changing order preserves drafts');
+    await setOrder('grid');
+    assert.equal(await run(`document.querySelector('[data-answer-word="${draftWord}"]').value`), 'unfinished');
+    await win.loadURL(`http://127.0.0.1:${server.address().port}/history-preview.html`);
+    await until(`document.querySelectorAll('.gridheading').length===25`);
+    await until(`window.GetAllWords().toUpperCase().includes('${duplicate}')`);
+    assert.ok(await run('window.GetAllWords()'), 'Grid preference reload keeps progress');
+    win.setSize(1000, 1000);
+    const out = path.resolve(__dirname, '../../artifacts/clue-grid-order'); fs.mkdirSync(out, { recursive: true });
+    const capture = async name => {
+      await run('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+      // Offscreen capturePage can race Windows' resized compositor surface.
+      // Use the freshly requested paint frame itself after layout settles.
+      const frame = await new Promise(resolve => {
+        win.webContents.once('paint', (_event, _dirty, image) => resolve(image));
+        win.webContents.invalidate();
+      });
+      fs.writeFileSync(path.join(out, name), frame.toPNG());
+    };
+    await run('window.scrollTo(0,0)');
+    await until(`Array.from(document.images).every(image=>image.complete)`);
+    await capture('grid-desktop.png');
+    win.setSize(760, 900);
+    await run(`document.querySelector('.orderline').scrollIntoView({block:'start'})`);
+    await capture('grid-narrow.png');
+    win.setSize(1000, 1000); win.webContents.setZoomFactor(1.25);
+    await until(`Math.abs(devicePixelRatio-1.25)<0.01`);
+    await capture('grid-zoom.png');
+    win.webContents.setZoomFactor(1);
+    await win.loadURL(`http://127.0.0.1:${server.address().port}/index.html`);
+    await until(`document.querySelectorAll('.gridheading').length===25`);
+    assert.equal(await run(`document.querySelector('[name="clue-order"][value=grid]').checked`), true, 'Self Serve shares the cookie preference');
+    await run(`window.AddBabbleWord('${duplicate}'); window.showAll()`);
+    await until(`Array.from(document.querySelectorAll('${selector}')).every(field=>field.closest('tr').querySelector('input[type=checkbox]').checked && field.value==='${duplicate.toLowerCase()}')`);
+    assert.equal((await run('window.GetAllWords()')).trim(), duplicate.toLowerCase(), 'Expert bridge exports each word only once');
+    await setOrder('alphabetical');
+    await win.loadURL(`http://127.0.0.1:${server.address().port}/history-preview.html`);
+    await until(`document.querySelectorAll('[data-answer-word]').length===197`);
+    assert.equal(await run(`document.querySelector('[name="clue-order"][value=alphabetical]').checked`), true, 'Alphabetical cookie also persists across both pages');
+    console.log('PASS: all 25 grid groups, exact starting paths, duplicate progress, Off keyboard navigation, drafts, Expert bridge and cookie on both pages. Screenshots: ' + out);
     // Optional real legacy source from the sibling Babble checkout. Inject the
     // shared asset locally, as its production build transform would load it.
     if (process.env.BABBLE_LEGACY_CLUES) {

@@ -1,4 +1,6 @@
 import { reconcileFound } from '../shared/live-clues.mjs';
+import { groupCluesByGrid, readClueOrder, clueOrderCookie } from '../shared/clue-order.mjs';
+import type { ClueOrder } from '../shared/clue-order.mjs';
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import LoadingClues from './LoadingClues';
@@ -130,6 +132,9 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   const [hasSolved, setHasSolved] = useState(false);
   const [filter, setFilter] = useState("");
   const [view, setView] = useState<"all" | "on" | "off">("all");
+  const [clueOrder, setClueOrder] = useState<ClueOrder>(() => {
+    try { return readClueOrder(document.cookie); } catch { return 'alphabetical'; }
+  });
   const [found, setFound] = useState<string[]>([]);
   const [status, setStatus] = useState("Checking saved word list…");
   const [puzzle, setPuzzle] = useState<string | null>(null);
@@ -140,6 +145,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   const [entryWord, setEntryWord] = useState("");
   const [entryMessage, setEntryMessage] = useState("");
   const foundRef = useRef<string[]>([]);
+  const drafts = useRef<Record<string, string>>({});
   const restoredPuzzle = useRef<string | null>(null);
   const grabInFlight = useRef(false);
   const wordInputRef = useRef<HTMLInputElement>(null);
@@ -207,6 +213,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   useEffect(() => {
     if (!puzzle || !clues.length) return;
     const samePuzzle = restoredPuzzle.current === puzzle;
+    if (!samePuzzle) drafts.current = {};
     restoredPuzzle.current = puzzle;
     try {
       const saved = JSON.parse(localStorage.getItem(`${publishedPuzzle ? 'babble-history-found' : 'babblekey-found'}-${puzzle}`) || "[]");
@@ -222,8 +229,13 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
 
   useEffect(() => {
     foundRef.current = found;
-    found.forEach(fillAnswer);
-  }, [found, clues, view, filter]);
+    fillFoundAnswers();
+  }, [found, clues, view, filter, clueOrder]);
+
+  function changeClueOrder(order: ClueOrder) {
+    setClueOrder(order);
+    try { document.cookie = clueOrderCookie(order, window.location.hostname, window.location.protocol === 'https:'); } catch { /* Keep the selection when cookies are blocked. */ }
+  }
 
   useEffect(() => {
     if (!publishedPuzzle && words.length && grid.replace(/[^A-Z]/gi, "").length === 25) solve();
@@ -236,6 +248,16 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
     ),
     [clues, filter, view, found],
   );
+  const gridGroups = useMemo(() => groupCluesByGrid(grid, clues), [grid, clues]);
+  const clueNumbers = useMemo(() => new Map(clues.map((clue, index) => [clue.word, index + 1])), [clues]);
+  const visibleWords = new Set(visible.map(clue => clue.word));
+  const alphabeticalGroups = visible.reduce<{ key: string; clues: Clue[] }[]>((groups, clue) => {
+    if (groups.at(-1)?.key !== clue.start) groups.push({ key: clue.start, clues: [] });
+    groups.at(-1)!.clues.push(clue); return groups;
+  }, []);
+  const clueGroups = clueOrder === 'grid'
+    ? gridGroups.map(group => ({ key: String(group.index), heading: `Row ${group.row}, Column ${group.column} - ${group.letter}`, clues: group.clues, tile: group.index }))
+    : alphabeticalGroups.map(group => ({ ...group, heading: '', tile: null }));
 
   const counts = useMemo(
     () => [...new Set([4, 5, 6, 7, 8, ...clues.map(clue => clue.length)])].sort((a, b) => a - b).map((length) => {
@@ -352,9 +374,15 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   }
 
   function fillAnswer(word: string) {
-    const field = [...document.querySelectorAll<HTMLInputElement>("[data-answer-word]")]
-      .find((input) => input.dataset.answerWord === word);
-    if (field) field.value = word.toLowerCase();
+    document.querySelectorAll<HTMLInputElement>(`input.answer[data-answer-word="${CSS.escape(word)}"]`)
+      .forEach(field => { field.value = word.toLowerCase(); });
+  }
+
+  function fillFoundAnswers() {
+    const entered = new Set(foundRef.current);
+    document.querySelectorAll<HTMLInputElement>('input.answer[data-answer-word]').forEach(field => {
+      if (entered.has(field.dataset.answerWord || '')) field.value = field.dataset.answerWord!.toLowerCase();
+    });
   }
 
   function addBabbleWord(rawWord: string) {
@@ -446,7 +474,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
     // Older Expert clients call showAll() after each word as a legacy counter
     // refresh. React updates the list and counters itself; keep the player's
     // filter and only refresh filled answers for those compatibility calls.
-    const externalShow = () => foundRef.current.forEach(fillAnswer);
+    const externalShow = () => fillFoundAnswers();
     const externalBulk = () => addBulkWords();
     bridge.AddBabbleWord = externalAdd;
     bridge.GetAllWords = externalGet;
@@ -547,16 +575,21 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
           <div className="totals">
             Total&nbsp; :{clues.length}&nbsp; On&nbsp; :{found.length}&nbsp; Off&nbsp; :{Math.max(0, clues.length - found.length)}
           </div>
+          <div className="orderline" role="group" aria-label="Clue order">
+            Order&nbsp;
+            <label title="Alphabetical"><input type="radio" name="clue-order" value="alphabetical" aria-label="Alphabetical" checked={clueOrder === 'alphabetical'} onChange={() => changeClueOrder('alphabetical')} />A–Z</label>{' '}
+            <label title="Grid position"><input type="radio" name="clue-order" value="grid" aria-label="Grid position" checked={clueOrder === 'grid'} onChange={() => changeClueOrder('grid')} />Grid</label>
+          </div>
           <div id="clues" className="find visuallyhidden">
             Find start: <input value={filter} onChange={(event) => setFilter(event.target.value)} maxLength={2} />
           </div>
 
           {clues.length ? (
-            <table className="clues">
-              <tbody>
-                {visible.map((clue, index) => (
-                  <Fragment key={clue.word}>
-                    <tr className={found.includes(clue.word) ? "done" : ""}>
+            <table className="clues" data-clue-order={clueOrder}>
+              {clueGroups.map(group => <tbody key={group.key} data-grid-position={group.tile ?? undefined}>
+                {group.heading && <tr className="gridheading"><th colSpan={4} scope="rowgroup">{group.heading}</th></tr>}
+                {group.clues.map(clue => (
+                    <tr key={clue.word} className={found.includes(clue.word) ? "done" : ""} hidden={!visibleWords.has(clue.word)}>
                       <td>{clue.start.toLowerCase()}{clue.length},{clue.score}</td>
                       <td>
                         <input
@@ -566,15 +599,13 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
                           onChange={() => unmark(clue.word)}
                         />
                       </td>
-                      <td><input className="answer" data-answer-word={clue.word} aria-label={`Answer beginning ${clue.start}`} defaultValue={(found.includes(clue.word) ? clue.word : clue.start).toLowerCase()} /></td>
+                      <td><input className="answer" data-answer-word={clue.word} name={group.tile === null ? undefined : `edt${group.tile * clues.length + clueNumbers.get(clue.word)!}`} aria-label={`Answer beginning ${clue.start}${group.tile === null ? '' : `, row ${Math.floor(group.tile / 5) + 1}, column ${group.tile % 5 + 1}`}`} defaultValue={found.includes(clue.word) ? clue.word.toLowerCase() : drafts.current[clue.word] ?? clue.start.toLowerCase()} onInput={event => { drafts.current[clue.word] = event.currentTarget.value; }} /></td>
                       <td />
                     </tr>
-                    {(index === visible.length - 1 || visible[index + 1].start !== clue.start) && (
-                      <tr className="groupback"><td colSpan={4}><a href="#top">Back to top</a></td></tr>
-                    )}
-                  </Fragment>
                 ))}
-              </tbody>
+                {group.heading && !group.clues.some(clue => visibleWords.has(clue.word)) && <tr className="gridempty"><td colSpan={4}>no words</td></tr>}
+                <tr className="groupback"><td colSpan={4}><a href="#top">Back to top</a></td></tr>
+              </tbody>)}
             </table>
           ) : (
             <p className="empty">Grab today&apos;s grid; clues are made automatically.</p>

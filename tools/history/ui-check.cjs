@@ -15,7 +15,7 @@ app.whenReady().then(async () => {
   const server = previewServer();
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const win = new BrowserWindow({ show: false, width: 1366, height: 950, webPreferences: { offscreen: true, backgroundThrottling: false, sandbox: true, nodeIntegration: false, contextIsolation: true, spellcheck: false } });
-  const run = code => win.webContents.executeJavaScript(code);
+  const run = code => win.webContents.executeJavaScript(code).catch(error => { throw new Error(`${code}: ${error.message}`); });
   const errors = [];
   win.webContents.on('console-message', event => { if (event.level === 'error' && !event.message.includes('503')) errors.push(event.message); });
   try {
@@ -29,7 +29,7 @@ app.whenReady().then(async () => {
     assert.ok(await run(`!document.querySelector('aside').textContent.includes('Clues Administration') && !document.querySelector('aside').textContent.includes('History preview.')`));
     assert.equal(await run(`typeof window.AddBabbleWord`), 'function');
     assert.ok(await run(`document.documentElement.scrollWidth <= innerWidth`));
-    await run(`document.querySelector('.clues input[type=checkbox]').click()`);
+    await run(`window.AddBabbleWord(document.querySelector('[data-answer-word]').dataset.answerWord)`);
     await until(() => run(`document.querySelectorAll('.clues tr.done').length===1`));
     await win.webContents.reload();
     await until(() => run(`document.querySelectorAll('.clues tr.done').length===1`));
@@ -37,7 +37,7 @@ app.whenReady().then(async () => {
     await fs.mkdir(out, { recursive: true });
     await sleep(100);
     await fs.writeFile(path.join(out, 'desktop.png'), (await win.webContents.capturePage()).toPNG());
-    assert.equal(await run(`document.querySelector('.printable-link').getAttribute('href')`), '/history-preview.html?print=1');
+    assert.equal(await run(`document.querySelector('a[href$="?print=1"]').getAttribute('href')`), '/history-preview.html?print=1');
     await win.loadURL(`http://127.0.0.1:${server.address().port}/history-preview.html?print=1`);
     await until(() => run(`document.querySelectorAll('.printable-clue').length===197`));
     assert.equal(await run(`document.querySelectorAll('input,textarea,.board,aside').length`), 0);

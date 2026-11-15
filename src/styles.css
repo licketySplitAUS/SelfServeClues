@@ -84,6 +84,9 @@ aside { grid-column: 3; grid-row: 1 / span 2; padding: 25px 5px 30px 15px; }
 .entrymessage { min-height: 1.2em; margin: 0 0 2px; color: #714500; font-size: .85em; font-style: italic; }
 .showline, .totals { line-height: 1.8; white-space: nowrap; }
 .showline input { margin: 0 2px; vertical-align: middle; }
+.orderline { line-height: 1.8; margin: 2px 0 4px; white-space: nowrap; }
+.orderline label { display: inline-block; white-space: nowrap; }
+.orderline input { margin: 0 2px; vertical-align: middle; }
 .empty { margin: 1em 0; font-style: italic; }
 
 .clues { width: 100%; border-collapse: separate; border-spacing: 2px; font-size: 1em; }
@@ -95,6 +98,8 @@ aside { grid-column: 3; grid-row: 1 / span 2; padding: 25px 5px 30px 15px; }
 .clues input[type='checkbox'] { margin: 3px 0 0; }
 .answer { box-sizing: content-box; width: 80px; height: 18px; padding: 1px 2px; }
 .clues .groupback td { display: table-cell; width: auto; padding: 2px 0; text-align: center; }
+.clues .gridheading th { padding: 5px 4px 2px; text-align: left; font-size: 1em; }
+.clues .gridempty td { display: table-cell; width: auto; font-style: italic; }
 .done .answer { font-weight: bold; }
 
 .board { display: grid; grid-template-columns: repeat(5, 40px); width: 200px; border: 1px solid #111; background: #111; }
