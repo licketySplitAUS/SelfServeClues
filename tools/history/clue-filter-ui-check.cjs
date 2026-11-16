@@ -288,6 +288,44 @@ app.whenReady().then(async () => {
     await until(`window.GetAllWords?.().toUpperCase().includes('${unrelated}')`); await settle();
     assert.equal(await run('scrollY'), 0, 'Restoring saved progress does not auto-scroll');
     console.log('PASS: next unfilled clue centres in A–Z, Grid and Off; duplicates/invalid/On/mode changes do not scroll; bulk batches coalesce and editing/focus are preserved.');
+    assert.equal(await run(`document.querySelector('#clue-centering-off').checked`), false, 'New visitors retain centering by default');
+    assert.equal(await run(`document.querySelector('.centering-preference').textContent.trim()`), 'Turn off clue centering');
+    assert.ok(await run(`!!(document.querySelector('.clues').compareDocumentPosition(document.querySelector('.centering-preference')) & Node.DOCUMENT_POSITION_FOLLOWING)`), 'Preference sits after the complete clues list');
+    await run(`document.querySelector('.centering-preference').scrollIntoView({block:'center',behavior:'instant'}); document.querySelector('#clue-centering-off').click()`);
+    await settle();
+    assert.ok(await run(`document.cookie.includes('lickety_clue_centering_off=1')`));
+    await capture('centering-preference.png');
+    const spyPreference = () => run(`window.preferenceScrolls=0;window.preferenceRealScroll=Element.prototype.scrollIntoView;Element.prototype.scrollIntoView=function(options){if(this.matches('.clues tr'))window.preferenceScrolls++;return window.preferenceRealScroll.call(this,options)};void 0`);
+    await spyPreference();
+    const preferenceWords = await run(`Array.from(new Set(Array.from(document.querySelectorAll('[data-answer-word]')).filter(field=>!field.closest('tr').querySelector('input[type=checkbox]').checked).map(field=>field.dataset.answerWord))).slice(0,4)`);
+    await run(`window.AddBabbleWord('${preferenceWords[0]}')`); await settle();
+    assert.equal(await run('window.preferenceScrolls'), 0, 'Opt-out disables automatic scrolling after an Expert transfer');
+    await input('textarea[name=bulkWords]', preferenceWords.slice(1,3).join('\n')); await run('window.AddBulkWord()'); await settle();
+    assert.equal(await run('window.preferenceScrolls'), 0, 'Opt-out also disables Bulk Add centering');
+    await editSlot(preferenceWords[3], preferenceWords[3].toLowerCase()); await enter(); await settle(); await enter(); await settle();
+    assert.equal(await run('window.preferenceScrolls'), 0, 'Double Enter retains navigation without forced centering');
+    assert.ok(await run(`!!document.activeElement.dataset.answerWord && document.activeElement.dataset.answerWord!=='${preferenceWords[3]}'`));
+    const disabledExport = (await run('window.GetAllWords()')).toUpperCase();
+    assert.ok(preferenceWords.every(word=>disabledExport.includes(word)), 'Opt-out never changes word acceptance');
+    await win.loadURL(`http://127.0.0.1:${server.address().port}/history-preview.html`);
+    await until(`document.querySelector('#clue-centering-off')?.checked===true`);
+    await win.loadURL(`http://127.0.0.1:${server.address().port}/index.html`);
+    await until(`document.querySelector('#clue-centering-off')?.checked===true && typeof window.AddBabbleWord==='function'`);
+    await spyPreference();
+    await run(`window.AddBabbleWord('${scrollWords[80]}')`); await settle();
+    assert.equal(await run('window.preferenceScrolls'), 0, 'Self Serve restores and honours the same cookie');
+    await run(`document.querySelector('#clue-centering-off').click()`); await settle();
+    assert.equal(await run('window.preferenceScrolls'), 0, 'Re-enabling does not immediately move the page');
+    await run(`window.AddBabbleWord('${scrollWords[81]}')`); await until('window.preferenceScrolls===1');
+    await win.loadURL(`http://127.0.0.1:${server.address().port}/history-preview.html`);
+    await until(`document.querySelector('#clue-centering-off')?.checked===false`);
+    await spyPreference();
+    await run(`Object.defineProperty(document,'cookie',{configurable:true,get(){throw Error('Blocked cookie')},set(){throw Error('Blocked cookie')}});document.querySelector('#clue-centering-off').click();void 0`); await settle();
+    const blockedWord = await run(`Array.from(document.querySelectorAll('[data-answer-word]')).find(field=>!field.closest('tr').querySelector('input[type=checkbox]').checked).dataset.answerWord`);
+    await run(`window.AddBabbleWord('${blockedWord}')`); await settle();
+    assert.equal(await run('window.preferenceScrolls'), 0, 'Checkbox works for this page even when cookies are blocked');
+    await run('delete document.cookie;void 0');
+    console.log('PASS: bottom-of-list centering opt-out, remembered across reloads and both pages, manual/Expert/bulk additions, keyboard navigation, re-enable and blocked cookies.');
     // Optional real legacy source from the sibling Babble checkout. Inject the
     // shared asset locally, as its production build transform would load it.
     if (process.env.BABBLE_LEGACY_CLUES) {

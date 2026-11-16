@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import { captureClueFollow, centreNextClue } from '../shared/clue-follow.mjs';
+import { captureClueFollow, centreNextClue, readClueCenteringOff, clueCenteringCookie } from '../shared/clue-follow.mjs';
 
 const source = fs.readFileSync(new URL('../public/clue-slot-entry.js', import.meta.url), 'utf8');
 function fixture() {
   const listeners = new Map(), calls = [];
-  const document = { body: {}, querySelectorAll: () => fields,
+  const document = { body: {}, querySelectorAll: () => fields, getElementById: () => document.centeringControl,
     addEventListener: (name, callback) => listeners.set(name, callback) };
   const fields = ['aced', 'aces', 'acid'].map((word, index) => {
     const check = { checked: false, matches: selector => selector === 'input[type="checkbox"]',
@@ -141,6 +141,28 @@ test('editing again resets the Enter sequence and composition is left alone', ()
   assert.equal(field.check.checked, true);
   assert.equal(f.document.activeElement, field);
   assert.equal(f.fire('keydown', field, { isComposing: true }).prevented, undefined);
+});
+
+test('centering opt-out remembers a one-year preference shared by both r46.me pages', () => {
+  assert.equal(readClueCenteringOff(''), false);
+  assert.equal(readClueCenteringOff('other=1; lickety_clue_centering_off=1; last=2'), true);
+  for (const cookie of ['lickety_clue_centering_off=0', 'lickety_clue_centering_off=invalid', 'other_lickety_clue_centering_off=1']) assert.equal(readClueCenteringOff(cookie), false);
+  for (const host of ['r46.me', 'selfserve.r46.me']) assert.equal(clueCenteringCookie(true, host, true), 'lickety_clue_centering_off=1; Max-Age=31536000; Path=/; SameSite=Lax; Domain=r46.me; Secure');
+  assert.equal(clueCenteringCookie(false, 'localhost', false), 'lickety_clue_centering_off=0; Max-Age=31536000; Path=/; SameSite=Lax');
+  assert.ok(!clueCenteringCookie(true, 'evilr46.me', true).includes('Domain='));
+});
+
+test('turning centering off preserves double Enter navigation with normal browser focus scrolling', () => {
+  for (const control of [true, false]) {
+    const f = fixture(), field = f.fields[0];
+    if (control) f.document.centeringControl = { checked: true };
+    else f.document.cookie = 'lickety_clue_centering_off=1';
+    field.focus(); field.value = 'aced'; f.fire('keydown', field); f.fire('keydown', field);
+    assert.equal(f.document.activeElement, f.fields[1]);
+    assert.equal(f.fields[1].selected, true);
+    assert.equal(f.fields[1].centred, undefined);
+    assert.equal(f.fields[1].focusOptions, undefined);
+  }
 });
 
 test('clicking an unsolved checkbox cannot mark or reveal its answer, while unticking remains available', () => {

@@ -1,7 +1,7 @@
 import { reconcileFound } from '../shared/live-clues.mjs';
 import { groupCluesByGrid, readClueOrder, clueOrderCookie } from '../shared/clue-order.mjs';
 import type { ClueOrder } from '../shared/clue-order.mjs';
-import { captureClueFollow, centreNextClue } from '../shared/clue-follow.mjs';
+import { captureClueFollow, centreNextClue, readClueCenteringOff, clueCenteringCookie } from '../shared/clue-follow.mjs';
 import type { ClueFollowAnchor } from '../shared/clue-follow.mjs';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
@@ -137,6 +137,9 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   const [clueOrder, setClueOrder] = useState<ClueOrder>(() => {
     try { return readClueOrder(document.cookie); } catch { return 'alphabetical'; }
   });
+  const [centeringOff, setCenteringOff] = useState(() => {
+    try { return readClueCenteringOff(document.cookie); } catch { return false; }
+  });
   const [found, setFound] = useState<string[]>([]);
   const [status, setStatus] = useState("Checking saved word list…");
   const [puzzle, setPuzzle] = useState<string | null>(null);
@@ -238,9 +241,15 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
   useLayoutEffect(() => {
     const pending = pendingFollow.current;
     pendingFollow.current = null;
-    if (!pending || pending.puzzle !== puzzle || pending.grid !== grid || pending.clues !== clues || pending.order !== clueOrder || pending.view !== view || pending.filter !== filter) return;
+    if (centeringOff || !pending || pending.puzzle !== puzzle || pending.grid !== grid || pending.clues !== clues || pending.order !== clueOrder || pending.view !== view || pending.filter !== filter) return;
     centreNextClue(document, pending.anchor, new Set(found));
-  }, [found, puzzle, grid, clues, clueOrder, view, filter]);
+  }, [found, puzzle, grid, clues, clueOrder, view, filter, centeringOff]);
+
+  function changeCenteringOff(off: boolean) {
+    pendingFollow.current = null;
+    setCenteringOff(off);
+    try { document.cookie = clueCenteringCookie(off, window.location.hostname, window.location.protocol === 'https:'); } catch { /* The checkbox still works when cookies are blocked. */ }
+  }
 
   function changeClueOrder(order: ClueOrder) {
     setClueOrder(order);
@@ -405,7 +414,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
     }
     // Only genuine new entries request scrolling. A bulk batch replaces this
     // request and centres once, after React commits the final found state.
-    pendingFollow.current = { anchor: captureClueFollow(document, word, foundRef.current), puzzle, grid, clues, order: clueOrder, view, filter };
+    pendingFollow.current = centeringOff ? null : { anchor: captureClueFollow(document, word, foundRef.current), puzzle, grid, clues, order: clueOrder, view, filter };
     const next = [...foundRef.current, word];
     foundRef.current = next;
     setFound(next);
@@ -506,7 +515,7 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
       if (bridge.showAll === externalShow) delete bridge.showAll;
       if (bridge.AddBulkWord === externalBulk) delete bridge.AddBulkWord;
     };
-  }, [clues, puzzle, grid, bulkWords, clueOrder, view, filter]);
+  }, [clues, puzzle, grid, bulkWords, clueOrder, view, filter, centeringOff]);
 
   if (!publishedPuzzle && (initialising || (!hasSolved && words.length > 0 && /^[A-Z]{25}$/i.test(grid)))) return <LoadingClues />;
 
@@ -624,6 +633,8 @@ export default function App({ publishedPuzzle, onRefresh, statistics, sidebarExt
           ) : (
             <p className="empty">Grab today&apos;s grid; clues are made automatically.</p>
           )}
+
+          {clues.length > 0 && <div className="centering-preference"><label><input id="clue-centering-off" type="checkbox" checked={centeringOff} onChange={event => changeCenteringOff(event.target.checked)} /> Turn off clue centering</label></div>}
 
           <form name="bulk" id="BulkAdd" className="bulk" onSubmit={(event) => { event.preventDefault(); addBulkWords(); }}>
             <h3>Bulk Add <small>(one per line)</small></h3>

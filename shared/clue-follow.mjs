@@ -2,6 +2,16 @@ const selector = '.clues input.answer[data-answer-word]';
 const wordOf = field => field?.dataset?.answerWord || '';
 const visible = field => !field.disabled && field.getClientRects().length > 0;
 const marked = doc => doc.querySelector('[data-babble-expert-active-clue]');
+const preference = 'lickety_clue_centering_off';
+
+export function readClueCenteringOff(cookie) {
+  return String(cookie || '').split(';').some(part => part.trim() === `${preference}=1`);
+}
+
+export function clueCenteringCookie(off, hostname, secure) {
+  const domain = hostname === 'r46.me' || hostname.endsWith('.r46.me') ? '; Domain=r46.me' : '';
+  return `${preference}=${off ? '1' : '0'}; Max-Age=31536000; Path=/; SameSite=Lax${domain}${secure ? '; Secure' : ''}`;
+}
 
 // Remember the exact displayed copy before Off removes/hides the completed
 // row. Other starting tiles can contain the same word in a different position.

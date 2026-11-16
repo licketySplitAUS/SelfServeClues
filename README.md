@@ -41,6 +41,8 @@ Above the clues, **Order → A–Z / Grid** switches between the usual alphabeti
 
 When a new word is filled, the page centres the next visible unfilled clue in the current order, wrapping to the first remaining gap when needed. Grid mode follows the exact starting-tile copy being used. This scrolls without moving keyboard focus or changing an answer. Duplicate/invalid entries, unticking words, saved-progress reloads and words outside the current filter do not trigger it; neither does adding a word while you are editing another clue or entry. Bulk Add centres once per batch. The existing second Enter still selects the next clue and centres it.
 
+Tick **Turn off clue centering** at the very bottom of the clues list to stop this automatic scrolling. A one-year preference cookie remembers the choice across both clues pages on `r46.me`. Untick it to enable centering again; the page stays where it is until the next new word. Double Enter still selects the next clue, using normal browser focus scrolling when centering is off. Expert's separate Resources/Next/Previous navigation remains available. If cookies are blocked, the checkbox still works for the current page.
+
 The page uses the same fixed 718px frame, 470px clues/board area, 230px sidebar, image tiles, and typography as Lickety's original clues page, so switching sources in Babble Expert does not change the page scale or alignment.
 
 ## Local testing

@@ -88,6 +88,8 @@ aside { grid-column: 3; grid-row: 1 / span 2; padding: 25px 5px 30px 15px; }
 .orderline label { display: inline-block; white-space: nowrap; }
 .orderline input { margin: 0 2px; vertical-align: middle; }
 .empty { margin: 1em 0; font-style: italic; }
+.centering-preference { margin: 8px 0; line-height: 1.8; }
+.centering-preference input { margin: 0 3px 0 0; vertical-align: middle; }
 
 .clues { width: 100%; border-collapse: separate; border-spacing: 2px; font-size: 1em; }
 .clues td { padding: 1px 4px; vertical-align: top; line-height: 1.8; }

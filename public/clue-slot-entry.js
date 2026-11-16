@@ -30,8 +30,12 @@
     const next = ordered.find(input => !input.disabled && input.getClientRects().length &&
       !input.closest('tr')?.querySelector('input[type="checkbox"]')?.checked);
     if (next) {
-      next.focus({ preventScroll: true }); next.select();
-      next.closest('tr')?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+      let off = document.getElementById?.('clue-centering-off')?.checked;
+      if (off === undefined) {
+        try { off = /(?:^|;\s*)lickety_clue_centering_off=1(?:;|$)/.test(document.cookie || ''); } catch { off = false; }
+      }
+      next.focus(off ? undefined : { preventScroll: true }); next.select();
+      if (!off) next.closest('tr')?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
     }
   }
   // A tick records an entered answer; it must never supply an unknown word.
